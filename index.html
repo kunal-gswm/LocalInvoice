@@ -1,0 +1,3063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>LocalInvoice — GST Billing App</title>
+<meta name="description" content="Offline GST-compliant billing application for local stationery shops in India. Create invoices, track history, export PDFs.">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* System font stack — no internet needed */
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  background: #f8f8f8;
+  color: #1a1a1a;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ===== VIEW TRANSITIONS ===== */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 0.25s;
+  animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+/* ===== CSS VARIABLES ===== */
+:root {
+  --red: #c0392b;
+  --red-light: #e74c3c;
+  --red-bg: #fef2f0;
+  --red-border: #c0392b;
+  --white: #ffffff;
+  --gray-50: #fafafa;
+  --gray-100: #f5f5f5;
+  --gray-200: #e5e5e5;
+  --gray-300: #d4d4d4;
+  --gray-400: #a3a3a3;
+  --gray-500: #737373;
+  --gray-600: #525252;
+  --gray-700: #404040;
+  --gray-800: #262626;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05);
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+/* ===== HEADER / NAV ===== */
+#app-header {
+  background: var(--white);
+  border-bottom: 3px solid var(--red);
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.app-logo {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--red);
+  letter-spacing: -0.5px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.app-logo span { color: var(--gray-800); }
+nav {
+  display: flex;
+  gap: 4px;
+}
+nav button {
+  background: none;
+  border: 2px solid transparent;
+  padding: 8px 18px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gray-600);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+nav button:hover {
+  color: var(--red);
+  background: var(--red-bg);
+}
+nav button.active {
+  color: var(--red);
+  border-color: var(--red);
+  background: var(--red-bg);
+}
+
+/* ===== MAIN CONTAINER ===== */
+.page {
+  display: none;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  animation: fadeIn 0.25s ease;
+}
+.page.active { display: block; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== CARDS ===== */
+.card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--red);
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--red-bg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ===== FORM ELEMENTS ===== */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.form-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.form-group input, .form-group select, .form-group textarea {
+  padding: 10px 12px;
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--gray-800);
+  background: var(--white);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(192,57,43,0.1);
+}
+.form-group input:disabled, .form-group select:disabled {
+  background: var(--gray-100);
+  color: var(--gray-500);
+  cursor: not-allowed;
+}
+.form-group input.readonly-field {
+  background: var(--gray-50);
+  border-style: dashed;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  user-select: none;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary {
+  background: var(--red);
+  color: var(--white);
+  border-color: var(--red);
+}
+.btn-primary:hover { background: #a93226; border-color: #a93226; }
+.btn-outline {
+  background: var(--white);
+  color: var(--red);
+  border-color: var(--red);
+}
+.btn-outline:hover { background: var(--red-bg); }
+.btn-ghost {
+  background: none;
+  color: var(--gray-600);
+  border-color: var(--gray-300);
+}
+.btn-ghost:hover { background: var(--gray-100); border-color: var(--gray-400); }
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 0.85rem;
+}
+.btn-lg {
+  padding: 14px 32px;
+  font-size: 1.1rem;
+}
+.btn-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+/* ===== STATUS BADGES ===== */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 20px;
+}
+.badge-draft { background: #fef3c7; color: #92400e; }
+.badge-final { background: #d1fae5; color: #065f46; }
+.badge-cancelled { background: #fee2e2; color: #991b1b; }
+
+/* ===== ITEMS TABLE ===== */
+.items-table-wrap {
+  overflow-x: auto;
+  margin-top: 8px;
+}
+.items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.items-table th {
+  background: var(--red);
+  color: var(--white);
+  padding: 10px 8px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.items-table th:first-child { border-radius: var(--radius) 0 0 0; }
+.items-table th:last-child { border-radius: 0 var(--radius) 0 0; }
+.items-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gray-200);
+  vertical-align: middle;
+}
+.items-table tr:hover td { background: var(--gray-50); }
+.items-table input {
+  width: 100%;
+  padding: 8px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 6px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.items-table input:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px rgba(192,57,43,0.08);
+}
+.items-table input:disabled {
+  background: var(--gray-50);
+  border-color: var(--gray-100);
+}
+.items-table .col-sr { width: 40px; text-align: center; }
+.items-table .col-name { min-width: 180px; }
+.items-table .col-hsn { width: 70px; }
+.items-table .col-gst { width: 70px; }
+.items-table .col-qty { width: 70px; }
+.items-table .col-unit { width: 70px; }
+.items-table .col-price { width: 90px; }
+.items-table .col-base { width: 85px; }
+.items-table .col-gstamt { width: 85px; }
+.items-table .col-total { width: 90px; }
+.items-table .col-total { width: 100px; }
+.items-table .col-action { width: 44px; text-align: center; }
+.items-table .computed { font-weight: 500; color: var(--gray-600); text-align: right; padding-right: 10px; }
+.btn-remove-row {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.btn-remove-row:hover { background: #fca5a5; }
+
+/* ===== AUTOCOMPLETE ===== */
+.autocomplete-list {
+  position: absolute;
+  background: var(--white);
+  border: 2px solid var(--red);
+  border-radius: 0 0 var(--radius) var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 2000;
+  max-height: 220px;
+  overflow-y: auto;
+  display: none;
+}
+.autocomplete-list.show { display: block; }
+.autocomplete-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.92rem;
+  transition: background 0.1s;
+}
+.autocomplete-item:hover, .autocomplete-item.highlighted {
+  background: var(--red-bg);
+  color: var(--red);
+}
+.autocomplete-item .gst-tag {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* ===== TOTALS BOX ===== */
+.totals-box {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.totals-table {
+  min-width: 280px;
+}
+.totals-table tr td {
+  padding: 8px 14px;
+  font-size: 0.95rem;
+}
+.totals-table tr td:first-child {
+  text-align: right;
+  color: var(--gray-500);
+  font-weight: 500;
+}
+.totals-table tr td:last-child {
+  text-align: right;
+  font-weight: 600;
+  min-width: 100px;
+}
+.totals-table .grand-total td {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--red);
+  border-top: 2px solid var(--red);
+  padding-top: 12px;
+}
+
+/* ===== INVOICE HISTORY ===== */
+.search-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  align-items: center;
+}
+.search-bar input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-bar input:focus { border-color: var(--red); }
+.invoice-list { list-style: none; }
+.invoice-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 120px 160px;
+  gap: 8px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  background: var(--white);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.invoice-row:hover {
+  border-color: var(--red);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+.invoice-row .inv-no { font-weight: 700; color: var(--gray-800); }
+.invoice-row .inv-date { color: var(--gray-500); font-size: 0.9rem; }
+.invoice-row .inv-customer { font-weight: 500; }
+.invoice-row .inv-total { font-weight: 700; text-align: right; }
+.invoice-row .inv-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.summary-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: var(--red-bg);
+  border: 2px solid var(--red);
+  border-radius: var(--radius);
+  margin-top: 20px;
+  font-weight: 600;
+}
+.summary-bar .total-amt { color: var(--red); font-size: 1.15rem; font-weight: 800; }
+
+/* ===== BANK & QR SECTION ===== */
+.bank-qr-section {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.bank-details {
+  flex: 1;
+  min-width: 250px;
+}
+.bank-details table {
+  width: 100%;
+  font-size: 0.9rem;
+}
+.bank-details table td { padding: 6px 8px; }
+.bank-details table td:first-child {
+  font-weight: 600;
+  color: var(--gray-500);
+  width: 140px;
+}
+.qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.qr-section .qr-label {
+  font-size: 0.8rem;
+  color: var(--gray-500);
+  font-weight: 600;
+}
+
+/* ===== SETTINGS PAGE ===== */
+.settings-form .form-grid { max-width: 700px; }
+.success-msg {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  margin-top: 12px;
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+/* ===== ERROR MESSAGE ===== */
+.error-msg {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: none;
+  animation: fadeIn 0.2s ease;
+}
+.error-msg.show { display: block; }
+
+/* ===== TOAST ===== */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--gray-800);
+  color: var(--white);
+  padding: 12px 28px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.95rem;
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.19,1,0.22,1);
+  pointer-events: none;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ===== MODAL / CONFIRM ===== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(2px);
+  z-index: 500;
+  justify-content: center;
+  align-items: center;
+}
+.modal-overlay.show { display: flex; }
+.modal-box {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+.modal-box h3 { margin-bottom: 12px; color: var(--gray-800); }
+.modal-box p { color: var(--gray-600); margin-bottom: 20px; }
+.modal-box .btn-group { justify-content: center; }
+
+/* ===== PRINT AREA (hidden on screen) ===== */
+#invoice-print-area {
+  display: none;
+  background: #fff;
+  padding: 10mm;
+  width: 210mm;
+  font-size: 12pt;
+  color: #000;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-weight: 500;
+}
+#pdf-capture-wrapper {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 794px;
+  overflow: hidden;
+  background: #fff;
+}
+#pdf-capture-wrapper #invoice-print-area {
+  display: block;
+  width: 794px;
+  padding: 40px;
+  box-sizing: border-box;
+}
+.print-header {
+  text-align: center;
+  margin-bottom: 15px;
+}
+.print-header h1 {
+  font-size: 24pt;
+  font-weight: 900;
+  color: #000;
+  margin-bottom: 2px;
+}
+.print-header p { font-size: 11pt; color: #000; margin: 2px 0; font-weight: 700; }
+.print-header .gst-line { font-weight: 800; }
+.print-separator {
+  border: none;
+  border-top: 3px solid #000;
+  margin: 12px 0;
+}
+.print-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 11pt;
+  font-weight: 600;
+  color: #000;
+}
+.print-meta div { line-height: 1.6; }
+.print-meta strong { font-weight: 800; color: #000; }
+
+/* Status Badge */
+.status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border: 1.5px solid #27ae60;
+  color: #27ae60;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.status-badge.draft  { border-color: #e67e22; color: #e67e22; }
+.status-badge.cancelled { border-color: #c0392b; color: #c0392b; }
+
+/* Bill To Section */
+.print-bill-to {
+  display: flex;
+  justify-content: space-between;
+  border: 1px solid #ddd;
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+.print-bill-to .bill-to-left {
+  flex: 1;
+  padding: 12px;
+  border-right: 1px solid #ddd;
+}
+.print-bill-to .bill-to-left .label {
+  font-variant: small-caps;
+  color: #888;
+  font-weight: bold;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.print-bill-to .bill-to-left .name {
+  font-weight: bold;
+  font-size: 15px;
+  color: #000;
+  margin-bottom: 2px;
+}
+.print-bill-to .bill-to-left .phone {
+  color: #555;
+  font-size: 12px;
+}
+.print-bill-to .bill-to-right {
+  width: 200px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #f9f9f9;
+  border-radius: 0 4px 4px 0;
+  font-size: 13px;
+  color: #000;
+}
+
+.print-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+  font-size: 11pt;
+  color: #000;
+}
+.print-items-table th, .print-items-table td {
+  border: 1.5px solid #000;
+  padding: 9px 10px;
+  text-align: left;
+  font-weight: 600;
+}
+.print-items-table tbody tr td:first-child {
+  border-left: 3px solid #c0392b;
+}
+.print-items-table th {
+  background: #f5f5f5;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  border-width: 2px;
+}
+.print-items-table td.num { text-align: right; }
+.print-totals {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+.print-totals table { min-width: 220px; font-size: 11.5pt; color: #000; }
+.print-totals table td { padding: 6px 10px; font-weight: 700; border: none; }
+.print-totals table td:first-child { text-align: right; color: #000; }
+.print-totals table td:last-child { text-align: right; font-weight: 800; }
+.print-totals .grand td {
+  font-size: 13.5pt;
+  font-weight: 900;
+  border-top: 3px solid #000;
+  padding-top: 10px;
+}
+.amount-words {
+  font-style: italic;
+  font-size: 12px;
+  color: #555;
+  text-align: right;
+  margin-top: 4px;
+}
+.print-bank-qr {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+.print-bank-qr .bank-info { font-size: 10.5pt; line-height: 1.6; flex: 1; font-weight: 600; color: #000; }
+.print-bank-qr .bank-info strong { display: inline-block; width: 130px; font-weight: 800; }
+.print-bank-qr .qr-box { text-align: center; }
+.print-bank-qr .qr-box p { font-size: 9pt; color: #000; margin-top: 4px; font-weight: 800; }
+.print-footer-new {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 2px solid #000;
+  color: #000;
+  font-size: 10.5pt;
+  font-weight: 600;
+}
+.print-disclaimer {
+  text-align: center;
+  font-size: 9pt;
+  color: #000;
+  margin-top: 20px;
+  font-style: italic;
+  font-weight: 700;
+}
+.invoice-border-box {
+  border: 3px solid #000;
+  padding: 15px;
+  border-radius: 4px;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .header-inner { flex-direction: column; gap: 8px; }
+  nav { width: 100%; justify-content: center; }
+  .invoice-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .invoice-row .inv-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .form-grid { grid-template-columns: 1fr; }
+  .bank-qr-section { flex-direction: column; }
+}
+
+/* ===== PRINT MEDIA ===== */
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  body { background: #fff; margin: 0; padding: 0; }
+  body > *:not(#invoice-print-area) { display: none !important; }
+  #invoice-print-area {
+    display: block !important;
+    width: 210mm;
+    padding: 12mm 14mm;
+    font-size: 11pt;
+    color: #000;
+    background: #fff;
+    margin: 0;
+    box-shadow: none !important;
+  }
+  .no-print { display: none !important; }
+  /* Corner squares — print as solid black */
+  .corner-accent-dark { background: #000 !important; }
+  .corner-accent-color { background: #000 !important; }
+  /* INVOICE label block */
+  .invoice-label-block { background: #000 !important; color: #fff !important; }
+  /* Header border */
+  .header-border-line { border-color: #000 !important; }
+  /* Table header */
+  .print-items-table thead tr th {
+    background: #000 !important;
+    color: #fff !important;
+    border: 1px solid #000 !important;
+  }
+  /* Table body rows */
+  .print-items-table tbody tr td {
+    background: none !important;
+    border-bottom: 1px solid #000 !important;
+    border-right: 1px solid #ccc !important;
+    color: #000 !important;
+  }
+  /* Totals */
+  .totals-subtotal-row, .totals-tax-row {
+    background: none !important;
+    border: 1px solid #000 !important;
+    color: #000 !important;
+  }
+  .totals-grand-row {
+    background: #000 !important;
+    color: #fff !important;
+  }
+  /* Amount words */
+  .amount-words { color: #000 !important; }
+  /* Payment section */
+  .payment-section { border-top: 1.5px solid #000 !important; }
+  /* Footer */
+  .invoice-footer { border-top: 1px solid #000 !important; color: #000 !important; }
+  .print-disclaimer { color: #000 !important; }
+  /* Status badge */
+  .status-badge { border: 1.5px solid #000 !important; color: #000 !important; background: none !important; }
+  /* No shadows anywhere */
+  * { box-shadow: none !important; text-shadow: none !important; }
+}
+
+/* ===== EMPTY STATE ===== */
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--gray-400);
+}
+.empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+.empty-state p { font-size: 1.1rem; }
+
+/* ===== MISC ===== */
+.rupee { font-family: inherit; }
+.text-right { text-align: right; }
+.mt-12 { margin-top: 12px; }
+.mb-8 { margin-bottom: 8px; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header id="app-header" class="no-print">
+  <div class="header-inner">
+    <div class="app-logo" onclick="navigate('new')">Local<span>Invoice</span></div>
+    <nav>
+      <button id="nav-new" onclick="navigate('new')">➕ New Invoice</button>
+      <button id="nav-history" onclick="navigate('history')">📋 History</button>
+      <button id="nav-items" onclick="navigate('items')">📦 Items</button>
+      <button id="nav-settings" onclick="navigate('settings')">⚙️ Settings</button>
+    </nav>
+  </div>
+</header>
+
+<!-- ===== PAGE 1: NEW INVOICE ===== -->
+<main id="page-new" class="page">
+  <div id="invoice-error" class="error-msg"></div>
+
+  <!-- Shop Details -->
+  <div class="card">
+    <div class="card-title">🏪 Shop Details</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Shop Name</label>
+        <input type="text" id="inv-shop-name" class="readonly-field" readonly tabindex="-1">
+      </div>
+      <div class="form-group">
+        <label>Address</label>
+        <input type="text" id="inv-shop-address" class="readonly-field" readonly tabindex="-1">
+      </div>
+      <div class="form-group">
+        <label>GST Number</label>
+        <input type="text" id="inv-shop-gst" class="readonly-field" readonly tabindex="-1">
+      </div>
+    </div>
+  </div>
+
+  <!-- Invoice Details -->
+  <div class="card">
+    <div class="card-title">📝 Invoice Details
+      <span id="inv-status-badge" class="badge badge-draft" style="margin-left:auto;">DRAFT</span>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Invoice Number</label>
+        <input type="text" id="inv-number" readonly class="readonly-field" tabindex="-1">
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="inv-date" tabindex="1">
+      </div>
+      <div class="form-group">
+        <label>Customer Name *</label>
+        <input type="text" id="inv-customer" placeholder="Enter customer name" tabindex="2" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Customer Phone</label>
+        <input type="tel" id="inv-phone" placeholder="Optional" tabindex="3">
+      </div>
+    </div>
+  </div>
+
+  <!-- Items Table -->
+  <div class="card">
+    <div class="card-title">📦 Items</div>
+    <div class="items-table-wrap">
+      <table class="items-table" id="items-table">
+        <thead>
+                    <tr>
+            <th class="col-sr">Sr.</th>
+            <th class="col-name">Item Name</th>
+            <th class="col-hsn">HSN</th>
+            <th class="col-gst">GST %</th>
+            <th class="col-qty">Qty</th>
+            <th class="col-unit">Unit</th>
+            <th class="col-price">Price (₹)</th>
+            <th class="col-base">Base (₹)</th>
+            <th class="col-gstamt">GST (₹)</th>
+            <th class="col-total">Total (₹)</th>
+            <th class="col-action"></th>
+          </tr>
+        </thead>
+        <tbody id="items-tbody"></tbody>
+      </table>
+    </div>
+    <button class="btn btn-outline btn-sm mt-12" onclick="addItemRow()" id="btn-add-row" tabindex="100">+ Add Item</button>
+
+    <!-- Totals -->
+    <div class="totals-box">
+      <table class="totals-table">
+        <tr><td>Subtotal (Base)</td><td id="tot-base">₹0.00</td></tr>
+        <tr><td>CGST</td><td id="tot-cgst">₹0.00</td></tr>
+        <tr><td>SGST</td><td id="tot-sgst">₹0.00</td></tr>
+        <tr class="grand-total"><td>Grand Total</td><td id="tot-grand">₹0.00</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Bank & QR -->
+  <div class="card" id="bank-card">
+    <div class="card-title">🏦 Bank & Payment Details</div>
+    <div class="bank-qr-section">
+      <div class="bank-details">
+        <table>
+          <tr><td>Bank Name</td><td id="inv-bank-name">—</td></tr>
+          <tr><td>Account Holder</td><td id="inv-acc-holder">—</td></tr>
+          <tr><td>Account Number</td><td id="inv-acc-number">—</td></tr>
+          <tr><td>IFSC Code</td><td id="inv-ifsc">—</td></tr>
+          <tr><td>UPI ID</td><td id="inv-upi-id">—</td></tr>
+        </table>
+      </div>
+      <div class="qr-section">
+        <div id="qr-container"></div>
+        <span class="qr-label">Scan to Pay (UPI)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="btn-group">
+    <button class="btn btn-ghost btn-lg" onclick="saveDraft()" id="btn-save-draft">💾 Save Draft</button>
+    <button class="btn btn-primary btn-lg" onclick="finaliseInvoice()" id="btn-finalise">✅ Finalise & Print</button>
+    <button class="btn btn-outline btn-lg" onclick="downloadPDF()" id="btn-pdf">📄 Download PDF</button>
+    <button class="btn btn-ghost" onclick="resetNewInvoice()" id="btn-new-fresh">🔄 New Invoice</button>
+    <button class="btn btn-primary" id="btn-new-from-view" onclick="navigate('new')" style="display:none">➕ Create New Invoice</button>
+  </div>
+</main>
+
+<!-- ===== PAGE 4: ITEMS ===== -->
+<main id="page-items" class="page">
+  <h2 style="font-size:1.5rem;font-weight:800;margin-bottom:16px;color:var(--gray-800);">📦 Item Inventory</h2>
+  
+  <div style="display:flex; justify-content:space-between; margin-bottom:16px; gap:16px; flex-wrap:wrap;">
+    <div style="display:flex; gap:8px; flex:1; max-width:600px;">
+      <input type="text" id="search-inventory" placeholder="Search items..." style="flex:1; padding:10px 14px; border:1.5px solid var(--gray-200); border-radius:var(--radius); font-size:1rem;" autocomplete="off">
+      <select id="filter-gst" onchange="renderInventory(document.getElementById('search-inventory').value)" style="padding:10px 14px; border:1.5px solid var(--gray-200); border-radius:var(--radius); font-size:1rem; outline:none; background:white;">
+        <option value="">All GST Rates</option>
+        <option value="0">0% (Exempt)</option>
+        <option value="5">5%</option>
+        <option value="12">12%</option>
+        <option value="18">18%</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="openItemModal()">+ Add New Item</button>
+  </div>
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    <div class="items-table-wrap" style="margin:0;">
+      <table class="items-table list-table">
+        <thead>
+          <tr>
+            <th style="width:40px; text-align:center;">Sr.</th>
+            <th>Item Name</th>
+            <th style="width:80px">HSN</th>
+            <th style="width:60px">GST%</th>
+            <th style="width:80px">Unit</th>
+            <th style="width:120px; text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="inventory-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- ===== PAGE 2: INVOICE HISTORY ===== -->
+<main id="page-history" class="page">
+  <h2 style="font-size:1.5rem;font-weight:800;margin-bottom:16px;color:var(--gray-800);">📋 Invoice History</h2>
+  <div class="search-bar">
+    <input type="text" id="search-invoices" placeholder="Search by customer name or invoice number..." autocomplete="off">
+  </div>
+  <div id="invoice-list-container"></div>
+  <div class="btn-group" style="margin-top:20px;">
+    <button class="btn btn-outline" onclick="exportBackup()">📥 Export Backup</button>
+    <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Import Backup</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(this.files[0])">
+  </div>
+</main>
+
+<!-- ===== PAGE 3: SETTINGS ===== -->
+<main id="page-settings" class="page">
+  <h2 style="font-size:1.5rem;font-weight:800;margin-bottom:16px;color:var(--gray-800);">⚙️ Settings</h2>
+  <div class="card settings-form">
+    <div class="card-title">🏪 Shop Information</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Shop Name</label>
+        <input type="text" id="set-shop-name" placeholder="Your Shop Name">
+      </div>
+      <div class="form-group">
+        <label>Shop Address</label>
+        <input type="text" id="set-shop-address" placeholder="Full Address">
+      </div>
+      <div class="form-group">
+        <label>GST Number</label>
+        <input type="text" id="set-gst-number" placeholder="e.g. 29ABCDE1234F1Z5">
+      </div>
+      <div class="form-group">
+        <label>UPI ID</label>
+        <input type="text" id="set-upi-id" placeholder="e.g. shop@upi">
+      </div>
+      <div class="form-group">
+        <label>Bank Name</label>
+        <input type="text" id="set-bank-name" placeholder="e.g. State Bank of India">
+      </div>
+      <div class="form-group">
+        <label>Account Number</label>
+        <input type="text" id="set-acc-number" placeholder="Bank Account Number">
+      </div>
+      <div class="form-group">
+        <label>IFSC Code</label>
+        <input type="text" id="set-ifsc" placeholder="e.g. SBIN0001234">
+      </div>
+      <div class="form-group">
+        <label>Account Holder Name</label>
+        <input type="text" id="set-acc-holder" placeholder="Name on Account">
+      </div>
+      <div class="form-group">
+        <label>Invoice Prefix</label>
+        <input type="text" id="set-invoice-prefix" placeholder="e.g. PBD, LI, INV" maxlength="6">
+      </div>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary btn-lg" onclick="saveSettings()">💾 Save Settings</button>
+    </div>
+    <div class="success-msg" id="settings-success">✅ Settings saved successfully!</div>
+  </div>
+</main>
+
+<!-- ===== PRINT AREA (used for PDF & print) ===== -->
+<div id="invoice-print-area">
+  <div class="invoice-border-box" id="print-content"></div>
+</div>
+
+<!-- ===== TOAST ===== -->
+<div class="toast" id="toast"></div>
+
+<!-- ===== ITEM MODAL ===== -->
+<div class="modal-overlay" id="item-modal">
+  <div class="modal-box" style="text-align:left; max-width:480px;">
+    <h3 id="item-modal-title" style="margin-bottom:20px;">Add New Item</h3>
+    <input type="hidden" id="edit-item-original-name">
+    <div class="form-grid" style="grid-template-columns: 1fr; gap:16px;">
+      <div class="form-group">
+        <label>Item Name *</label>
+        <input type="text" id="edit-item-name" placeholder="Enter item name" autocomplete="off" style="width:100%; padding:10px; border:1.5px solid var(--gray-200); border-radius:var(--radius); font-size:1rem;">
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label>HSN</label>
+          <input type="text" id="edit-item-hsn" placeholder="e.g. 9609" style="width:100%; padding:10px; border:1.5px solid var(--gray-200); border-radius:var(--radius); font-size:1rem;">
+        </div>
+        <div class="form-group">
+          <label>GST %</label>
+          <input type="number" id="edit-item-gst" placeholder="0 - 28" min="0" max="28" style="width:100%; padding:10px; border:1.5px solid var(--gray-200); border-radius:var(--radius); font-size:1rem;">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Unit</label>
+        <input type="text" id="edit-item-unit" placeholder="e.g. pcs, box" style="width:100%; padding:10px; border:1.5px solid var(--gray-200); border-radius:var(--radius); font-size:1rem;">
+      </div>
+    </div>
+    <div class="btn-group" style="margin-top:24px; justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeItemModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItemFromModal()">Save Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CONFIRM MODAL ===== -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal-box">
+    <h3 id="modal-title">Confirm</h3>
+    <p id="modal-message">Are you sure?</p>
+    <div class="btn-group">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modal-confirm-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==========================================================
+   LocalInvoice — Complete Vanilla JS Application
+   ========================================================== */
+
+// ===== SEED DATA =====
+const SEED_ITEMS = [
+  { "name": "Slate Pencil", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Chalk Stick White", "gstPercent": 0, "hsn": "9609", "unit": "box" },
+  { "name": "Chalk Stick Colour", "gstPercent": 0, "hsn": "9609", "unit": "box" },
+  { "name": "Slate", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Pencil HB", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Pencil 2B", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Pencil 4B", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Pencil 6B", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Natraj Pencil HB", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Apsara Pencil HB", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Camel Pencil HB", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Eraser Small", "gstPercent": 0, "hsn": "4016", "unit": "pcs" },
+  { "name": "Eraser Medium", "gstPercent": 0, "hsn": "4016", "unit": "pcs" },
+  { "name": "Eraser Large", "gstPercent": 0, "hsn": "4016", "unit": "pcs" },
+  { "name": "Apsara Eraser", "gstPercent": 0, "hsn": "4016", "unit": "pcs" },
+  { "name": "Natraj Eraser", "gstPercent": 0, "hsn": "4016", "unit": "pcs" },
+  { "name": "Camel Eraser", "gstPercent": 0, "hsn": "4016", "unit": "pcs" },
+  { "name": "Notebook Single Line", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Notebook Four Line", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Notebook Double Line", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Notebook Unruled", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Notebook A5 Size", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Notebook A4 Size", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Exercise Book 100 Pages", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Exercise Book 200 Pages", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Exercise Book Long", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Geometry Box Small", "gstPercent": 0, "hsn": "9017", "unit": "pcs" },
+  { "name": "Geometry Box Large", "gstPercent": 0, "hsn": "9017", "unit": "pcs" },
+  { "name": "Camlin Geometry Box", "gstPercent": 0, "hsn": "9017", "unit": "pcs" },
+  { "name": "Natraj Geometry Box", "gstPercent": 0, "hsn": "9017", "unit": "pcs" },
+  { "name": "Sharpener Single Hole", "gstPercent": 0, "hsn": "8214", "unit": "pcs" },
+  { "name": "Sharpener Double Hole", "gstPercent": 0, "hsn": "8214", "unit": "pcs" },
+  { "name": "Sharpener With Container", "gstPercent": 0, "hsn": "8214", "unit": "pcs" },
+  { "name": "Natraj Sharpener", "gstPercent": 0, "hsn": "8214", "unit": "pcs" },
+  { "name": "Crayon Box 12 Colours", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Crayon Box 24 Colours", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Crayon Box 36 Colours", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Camlin Crayon Box", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Apsara Crayon Box", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Colour Pencil 12 Shades", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Colour Pencil 24 Shades", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Colour Pencil 36 Shades", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Camlin Colour Pencils", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Natraj Colour Pencils", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Drawing Book A3", "gstPercent": 5, "hsn": "4820", "unit": "pcs" },
+  { "name": "Drawing Book A4", "gstPercent": 5, "hsn": "4820", "unit": "pcs" },
+  { "name": "Sketch Pen Set 12 Colours", "gstPercent": 5, "hsn": "9609", "unit": "set" },
+  { "name": "Sketch Pen Set 24 Colours", "gstPercent": 5, "hsn": "9609", "unit": "set" },
+  { "name": "Camlin Sketch Pens", "gstPercent": 5, "hsn": "9609", "unit": "set" },
+  { "name": "Apsara Sketch Pens", "gstPercent": 5, "hsn": "9609", "unit": "set" },
+  { "name": "Oil Pastel 12 Colours", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Oil Pastel 24 Colours", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Camlin Oil Pastels", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Soft Pastel Set", "gstPercent": 5, "hsn": "9609", "unit": "box" },
+  { "name": "Watercolour Cake 12 Shades", "gstPercent": 5, "hsn": "3213", "unit": "box" },
+  { "name": "Watercolour Cake 24 Shades", "gstPercent": 5, "hsn": "3213", "unit": "box" },
+  { "name": "Camlin Watercolour", "gstPercent": 5, "hsn": "3213", "unit": "box" },
+  { "name": "Fountain Pen", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Fountain Pen Hero", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Fountain Pen Parker", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Stylograph Pen", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Calligraphy Pen", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Pen Refill Blue", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Pen Refill Black", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Pen Refill Red", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Reynolds Refill Blue", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Parker Refill Blue", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ink Bottle Blue 30ml", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ink Bottle Black 30ml", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ink Bottle Red 30ml", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Chelpark Ink Blue", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Camel Ink Blue", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Register 200 Pages", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Register 300 Pages", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Register 500 Pages", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Account Book Small", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Account Book Medium", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Account Book Large", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Khaata Bahi Small", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Khaata Bahi Large", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Receipt Book Duplicate", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Receipt Book Triplicate", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Cash Memo Book", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Printed Diary A5", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Printed Diary A4", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Pocket Diary", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Letter Pad A4", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Memorandum Pad", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Graph Paper Book", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Log Book", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Attendance Register", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "File Cover Paper", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Folder Manila", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Binder A4", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Document Envelope A4", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Envelope Brown Small", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Envelope Brown Medium", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Envelope Brown Large", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Envelope White Small", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Envelope White Medium", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Envelope White Large", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Inland Letter", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Speed Post Envelope", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Carbon Paper Blue", "gstPercent": 12, "hsn": "4816", "unit": "pcs" },
+  { "name": "Carbon Paper Black", "gstPercent": 12, "hsn": "4816", "unit": "pcs" },
+  { "name": "Blotting Paper", "gstPercent": 12, "hsn": "4805", "unit": "pcs" },
+  { "name": "Interleaved Carbon Set", "gstPercent": 12, "hsn": "4816", "unit": "pcs" },
+  { "name": "Book Cover Sheet", "gstPercent": 12, "hsn": "4823", "unit": "pcs" },
+  { "name": "Paper Label Sheet", "gstPercent": 12, "hsn": "4821", "unit": "pcs" },
+  { "name": "Address Label Sheet", "gstPercent": 12, "hsn": "4821", "unit": "pcs" },
+  { "name": "Writing Paper 100 Sheets", "gstPercent": 12, "hsn": "4802", "unit": "pcs" },
+  { "name": "Whiteboard Small 1x1.5ft", "gstPercent": 12, "hsn": "9610", "unit": "pcs" },
+  { "name": "Whiteboard Medium 2x3ft", "gstPercent": 12, "hsn": "9610", "unit": "pcs" },
+  { "name": "Whiteboard Large 3x4ft", "gstPercent": 12, "hsn": "9610", "unit": "pcs" },
+  { "name": "Drawing Board Small", "gstPercent": 12, "hsn": "9017", "unit": "pcs" },
+  { "name": "Drawing Board Large", "gstPercent": 12, "hsn": "9017", "unit": "pcs" },
+  { "name": "Atlas School", "gstPercent": 12, "hsn": "4905", "unit": "pcs" },
+  { "name": "Map India Political", "gstPercent": 12, "hsn": "4905", "unit": "pcs" },
+  { "name": "Map World Political", "gstPercent": 12, "hsn": "4905", "unit": "pcs" },
+  { "name": "Globe Small", "gstPercent": 12, "hsn": "4905", "unit": "pcs" },
+  { "name": "Sharpener Metal Single Hole", "gstPercent": 12, "hsn": "8214", "unit": "pcs" },
+  { "name": "Sharpener Metal Double Hole", "gstPercent": 12, "hsn": "8214", "unit": "pcs" },
+  { "name": "Table Top Sharpener", "gstPercent": 12, "hsn": "8214", "unit": "pcs" },
+  { "name": "Ball Pen Blue 0.7mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ball Pen Black 0.7mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ball Pen Red 0.7mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ball Pen Green 0.7mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Reynolds Pen 045 Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Reynolds Pen 045 Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Reynolds Trimax Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Reynolds Trimax Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Reynolds Trimax Red", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Reynolds Trimax Green", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Cello Gripper Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Cello Gripper Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Cello Clickit Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Cello Butterflow Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Cello Butterflow Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Linc Glycer Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Linc Glycer Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Linc Executive Pen", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Flair Writo Meter Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Flair Writo Meter Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Flair Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Luxor Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Luxor Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Luxor Ballpoint Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Parker Ball Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Parker Ball Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Hauser Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Hauser Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Montex Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Rorito Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Add Gel Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Add Gel Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Gel Pen Blue 0.5mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Gel Pen Black 0.5mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Gel Pen Red 0.5mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Gel Pen Blue 0.7mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Cello Topball Gel Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Cello Topball Gel Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Pilot Gel Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Pilot Gel Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Uniball Gel Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Uniball Gel Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Pentel Gel Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Reynolds Jiffy Gel Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Cartridge Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Cartridge Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ink Cartridge Blue Pack 5", "gstPercent": 18, "hsn": "9608", "unit": "pack" },
+  { "name": "Ink Cartridge Black Pack 5", "gstPercent": 18, "hsn": "9608", "unit": "pack" },
+  { "name": "Ink Cartridge Blue Pack 10", "gstPercent": 18, "hsn": "9608", "unit": "pack" },
+  { "name": "Parker Cartridge Blue", "gstPercent": 18, "hsn": "9608", "unit": "pack" },
+  { "name": "Hero Cartridge Blue", "gstPercent": 18, "hsn": "9608", "unit": "pack" },
+  { "name": "Camlin Cartridge Blue", "gstPercent": 18, "hsn": "9608", "unit": "pack" },
+  { "name": "International Cartridge Blue", "gstPercent": 18, "hsn": "9608", "unit": "pack" },
+  { "name": "Roller Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Roller Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Uniball Roller Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Fineliner Pen 0.4mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Fineliner Pen Set 12 Colours", "gstPercent": 18, "hsn": "9608", "unit": "set" },
+  { "name": "Staedtler Fineliner", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Marker Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Marker Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Marker Pen Red", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Marker Pen Green", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Camlin Marker Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Permanent Marker Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Permanent Marker Red", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Whiteboard Marker Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Whiteboard Marker Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Whiteboard Marker Red", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Whiteboard Marker Green", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Whiteboard Marker Set 4", "gstPercent": 18, "hsn": "9608", "unit": "set" },
+  { "name": "Luxor Whiteboard Marker", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Yellow", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Pink", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Green", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Orange", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Set 4 Colours", "gstPercent": 18, "hsn": "9608", "unit": "set" },
+  { "name": "Luxor Highlighter Yellow", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Stabilo Boss Highlighter", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Printer Ink Black Bottle", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Printer Ink Colour Set", "gstPercent": 18, "hsn": "3215", "unit": "set" },
+  { "name": "HP Ink Bottle Black", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Epson Ink Bottle Black", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Canon Ink Cartridge Black", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "HP Ink Cartridge 803 Black", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "HP Ink Cartridge 803 Colour", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Epson 003 Black Ink Bottle", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Epson 003 Cyan Ink Bottle", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Epson 003 Magenta Ink Bottle", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Epson 003 Yellow Ink Bottle", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Stamp Ink Pad Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Stamp Ink Pad Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Stamp Ink Pad Red", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Stamp Ink Refill Blue", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Stamp Ink Refill Black", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Typewriter Ribbon", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
+  { "name": "A4 Paper Rim 500 Sheets 75 GSM", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "A4 Paper Rim 500 Sheets 80 GSM", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "A4 Paper Rim 500 Sheets 90 GSM", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "A3 Paper Rim 500 Sheets 75 GSM", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "A3 Paper Rim 500 Sheets 80 GSM", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "Legal Size Paper Rim 500 Sheets", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "JK Copier A4 75 GSM Rim", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "JK Copier A4 80 GSM Rim", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "Double A A4 80 GSM Rim", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "Bilt Copy Power A4 Rim", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "Rotatrim A4 80 GSM Rim", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "Excel A4 80 GSM Rim", "gstPercent": 18, "hsn": "4802", "unit": "rim" },
+  { "name": "Carbon Copy Paper A4 Blue", "gstPercent": 18, "hsn": "4816", "unit": "pack" },
+  { "name": "Carbon Copy Paper A4 Black", "gstPercent": 18, "hsn": "4816", "unit": "pack" },
+  { "name": "Tracing Paper A4", "gstPercent": 18, "hsn": "4806", "unit": "pcs" },
+  { "name": "Art Paper A4 150 GSM", "gstPercent": 18, "hsn": "4810", "unit": "pcs" },
+  { "name": "Art Paper A4 200 GSM", "gstPercent": 18, "hsn": "4810", "unit": "pcs" },
+  { "name": "Cardstock Paper A4 250 GSM", "gstPercent": 18, "hsn": "4810", "unit": "pcs" },
+  { "name": "Butter Paper A4", "gstPercent": 18, "hsn": "4806", "unit": "pcs" },
+  { "name": "Coloured Paper A4 Pack", "gstPercent": 18, "hsn": "4802", "unit": "pack" },
+  { "name": "Lamination Sheet A4 Pack", "gstPercent": 18, "hsn": "3919", "unit": "pack" },
+  { "name": "Lamination Sheet A3 Pack", "gstPercent": 18, "hsn": "3919", "unit": "pack" },
+  { "name": "Photo Paper A4 Glossy Pack", "gstPercent": 18, "hsn": "4810", "unit": "pack" },
+  { "name": "Photo Paper A4 Matte Pack", "gstPercent": 18, "hsn": "4810", "unit": "pack" },
+  { "name": "Cello Tape Transparent 1 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Cello Tape Transparent 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Cello Tape Transparent 3 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Cello Tape Clear 65M Roll", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Cello Tape Clear 100M Roll", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Brown Packing Tape 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Brown Packing Tape 3 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Brown Packing Tape Large 72mm", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "White Tape 1 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "White Tape 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "White Tape 3 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Red Tape 1 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Red Tape 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Yellow Tape 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Blue Tape 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Green Tape 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Double Sided Tape Small", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Double Sided Tape Large", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Foam Double Sided Tape", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Masking Tape 1 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Masking Tape 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Masking Tape 3 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Electrical Tape Black", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "OPP Tape 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Tape Dispenser Small", "gstPercent": 18, "hsn": "8441", "unit": "pcs" },
+  { "name": "Tape Dispenser Large", "gstPercent": 18, "hsn": "8441", "unit": "pcs" },
+  { "name": "Stapler Mini", "gstPercent": 18, "hsn": "8305", "unit": "pcs" },
+  { "name": "Stapler Standard", "gstPercent": 18, "hsn": "8305", "unit": "pcs" },
+  { "name": "Stapler Heavy Duty", "gstPercent": 18, "hsn": "8305", "unit": "pcs" },
+  { "name": "Max Stapler HD-10", "gstPercent": 18, "hsn": "8305", "unit": "pcs" },
+  { "name": "Kangaro Stapler", "gstPercent": 18, "hsn": "8305", "unit": "pcs" },
+  { "name": "Staple Pins No.10 Box", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Staple Pins No.24/6 Box", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Staple Pins No.26/6 Box", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Staple Remover", "gstPercent": 18, "hsn": "8305", "unit": "pcs" },
+  { "name": "Paper Clip Box 100 Pcs", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Paper Clip Box 50 Pcs", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Binder Clip 19mm Pack", "gstPercent": 18, "hsn": "8305", "unit": "pack" },
+  { "name": "Binder Clip 25mm Pack", "gstPercent": 18, "hsn": "8305", "unit": "pack" },
+  { "name": "Binder Clip 32mm Pack", "gstPercent": 18, "hsn": "8305", "unit": "pack" },
+  { "name": "Binder Clip 41mm Pack", "gstPercent": 18, "hsn": "8305", "unit": "pack" },
+  { "name": "Binder Clip 51mm Pack", "gstPercent": 18, "hsn": "8305", "unit": "pack" },
+  { "name": "Drawing Pin Box 100 Pcs", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Thumb Pin Box", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Letter Clip Small", "gstPercent": 18, "hsn": "8305", "unit": "pcs" },
+  { "name": "Rubber Band Box 100g", "gstPercent": 18, "hsn": "4016", "unit": "box" },
+  { "name": "Rubber Band Box 500g", "gstPercent": 18, "hsn": "4016", "unit": "box" },
+  { "name": "Plastic File Cover A4", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "L Shape File A4", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "U Shape File A4", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Document Bag A4", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Expanding File 13 Pocket", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Expanding File 26 Pocket", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Box File A4", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Box File A4 Broad", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Pvc Folder A4", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Punching Machine 2 Hole", "gstPercent": 18, "hsn": "8441", "unit": "pcs" },
+  { "name": "Punching Machine 4 Hole", "gstPercent": 18, "hsn": "8441", "unit": "pcs" },
+  { "name": "Ring Binder A4", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Spiral Binder A4", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Report Cover A4", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Interleaf File 100 Pockets", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Interleaf File 200 Pockets", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Scissors 6 Inch", "gstPercent": 18, "hsn": "8213", "unit": "pcs" },
+  { "name": "Scissors 8 Inch", "gstPercent": 18, "hsn": "8213", "unit": "pcs" },
+  { "name": "Scissors 10 Inch", "gstPercent": 18, "hsn": "8213", "unit": "pcs" },
+  { "name": "Paper Cutter Small", "gstPercent": 18, "hsn": "8213", "unit": "pcs" },
+  { "name": "Paper Cutter Large", "gstPercent": 18, "hsn": "8213", "unit": "pcs" },
+  { "name": "Paper Knife", "gstPercent": 18, "hsn": "8211", "unit": "pcs" },
+  { "name": "Letter Opener", "gstPercent": 18, "hsn": "8211", "unit": "pcs" },
+  { "name": "Cutter Blade Set", "gstPercent": 18, "hsn": "8211", "unit": "set" },
+  { "name": "Board Cutter", "gstPercent": 18, "hsn": "8211", "unit": "pcs" },
+  { "name": "Glue Stick Small 8g", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Glue Stick Medium 15g", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Glue Stick Large 40g", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevicol 50ml Bottle", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevicol 100ml Bottle", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevicol 200ml Bottle", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevicol 500ml Bottle", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevistick Glue Stick", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "UHU Glue Stick", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Gum Bottle 100ml", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Paste Bottle 100g", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevibond Tube 15ml", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Super Glue Tube 3g", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Scale 15cm Plastic", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Scale 30cm Plastic", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Scale 30cm Steel", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Scale 60cm Steel", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Scale 100cm Steel", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Set Square 45 Degree", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Set Square 60 Degree", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Set Square Set", "gstPercent": 18, "hsn": "9017", "unit": "set" },
+  { "name": "Protractor 180 Degree", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Protractor 360 Degree", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Compass Drawing", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Compass With Extension", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Divider", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Stencil Circle", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Stencil Alphabet", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "French Curve Set", "gstPercent": 18, "hsn": "9017", "unit": "set" },
+  { "name": "Parallel Ruler", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "T Square 24 Inch", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "T Square 36 Inch", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Rubber Stamp Custom", "gstPercent": 18, "hsn": "9611", "unit": "pcs" },
+  { "name": "Self Ink Stamp Small", "gstPercent": 18, "hsn": "9611", "unit": "pcs" },
+  { "name": "Self Ink Stamp Medium", "gstPercent": 18, "hsn": "9611", "unit": "pcs" },
+  { "name": "Self Ink Stamp Large", "gstPercent": 18, "hsn": "9611", "unit": "pcs" },
+  { "name": "Stamp Pad Small Black", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
+  { "name": "Stamp Pad Medium Black", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
+  { "name": "Stamp Pad Blue", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
+  { "name": "Stamp Pad Red", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
+  { "name": "Number Stamp Set", "gstPercent": 18, "hsn": "9611", "unit": "set" },
+  { "name": "Date Stamp", "gstPercent": 18, "hsn": "9611", "unit": "pcs" },
+  { "name": "Paid Stamp", "gstPercent": 18, "hsn": "9611", "unit": "pcs" },
+  { "name": "Pencil Box Plastic Small", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Pencil Box Plastic Large", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Pencil Box Metal", "gstPercent": 18, "hsn": "8306", "unit": "pcs" },
+  { "name": "Pencil Pouch Fabric", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Correction Fluid White 20ml", "gstPercent": 18, "hsn": "3824", "unit": "pcs" },
+  { "name": "Correction Tape 5mm", "gstPercent": 18, "hsn": "3824", "unit": "pcs" },
+  { "name": "Correction Tape 8mm", "gstPercent": 18, "hsn": "3824", "unit": "pcs" },
+  { "name": "Faber Castell Correction Tape", "gstPercent": 18, "hsn": "3824", "unit": "pcs" },
+  { "name": "Camlin Correction Fluid", "gstPercent": 18, "hsn": "3824", "unit": "pcs" },
+  { "name": "Sticky Notes 3x3 Yellow", "gstPercent": 18, "hsn": "4820", "unit": "pad" },
+  { "name": "Sticky Notes 3x3 Assorted", "gstPercent": 18, "hsn": "4820", "unit": "pad" },
+  { "name": "Sticky Notes 3x4 Yellow", "gstPercent": 18, "hsn": "4820", "unit": "pad" },
+  { "name": "Sticky Notes Flags Pack", "gstPercent": 18, "hsn": "4820", "unit": "pack" },
+  { "name": "Sticky Notes 5x5 Yellow", "gstPercent": 18, "hsn": "4820", "unit": "pad" },
+  { "name": "Index Sticker Tabs Pack", "gstPercent": 18, "hsn": "4821", "unit": "pack" },
+  { "name": "Pen Stand Plastic", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Pen Stand Metal", "gstPercent": 18, "hsn": "8306", "unit": "pcs" },
+  { "name": "Pen Tray Plastic", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Paper Tray Single", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Paper Tray Double", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Paper Tray Triple", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Index Tag Pack", "gstPercent": 18, "hsn": "8305", "unit": "pack" },
+  { "name": "Card Index Cabinet", "gstPercent": 18, "hsn": "8305", "unit": "pcs" },
+  { "name": "Desk Organiser Small", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Desk Organiser Large", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Letter Tray Metal", "gstPercent": 18, "hsn": "8306", "unit": "pcs" },
+  { "name": "Clipboard A4", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Clipboard Long", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Mouse Pad Plain", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Calculator 12 Digit", "gstPercent": 18, "hsn": "8470", "unit": "pcs" },
+  { "name": "Calculator 8 Digit Pocket", "gstPercent": 18, "hsn": "8470", "unit": "pcs" },
+  { "name": "Calculator Scientific", "gstPercent": 18, "hsn": "8470", "unit": "pcs" },
+  { "name": "Casio FX-82 Calculator", "gstPercent": 18, "hsn": "8470", "unit": "pcs" },
+  { "name": "Casio DJ-120D Calculator", "gstPercent": 18, "hsn": "8470", "unit": "pcs" },
+  { "name": "Planner Weekly A5", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Planner Monthly A4", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Premium Notebook Hardcover A5", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Premium Notebook Hardcover A4", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Spiral Notebook A4", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Spiral Notebook A5", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Sketch Book A4", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Wirebound Notebook A4", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Watercolour Tube Set 12", "gstPercent": 18, "hsn": "3213", "unit": "set" },
+  { "name": "Acrylic Colour Tube Set", "gstPercent": 18, "hsn": "3213", "unit": "set" },
+  { "name": "Poster Colour Set 12", "gstPercent": 18, "hsn": "3213", "unit": "set" },
+  { "name": "Oil Paint Tube Set", "gstPercent": 18, "hsn": "3213", "unit": "set" },
+  { "name": "Art Brush Set 12", "gstPercent": 18, "hsn": "9603", "unit": "set" },
+  { "name": "Art Brush Flat No 6", "gstPercent": 18, "hsn": "9603", "unit": "pcs" },
+  { "name": "Art Brush Round No 4", "gstPercent": 18, "hsn": "9603", "unit": "pcs" },
+  { "name": "Art Brush Round No 8", "gstPercent": 18, "hsn": "9603", "unit": "pcs" },
+  { "name": "Camlin Artist Brush Set", "gstPercent": 18, "hsn": "9603", "unit": "set" },
+  { "name": "Palette Plastic 12 Wells", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Canvas Board A4", "gstPercent": 18, "hsn": "9820", "unit": "pcs" },
+  { "name": "Canvas Board A3", "gstPercent": 18, "hsn": "9820", "unit": "pcs" },
+  { "name": "Whiteboard Duster", "gstPercent": 18, "hsn": "9603", "unit": "pcs" },
+  { "name": "Whiteboard Eraser", "gstPercent": 18, "hsn": "9603", "unit": "pcs" },
+  { "name": "Whiteboard Cleaner Spray", "gstPercent": 18, "hsn": "3402", "unit": "pcs" },
+  { "name": "Notice Board Small", "gstPercent": 18, "hsn": "9610", "unit": "pcs" },
+  { "name": "Notice Board Large", "gstPercent": 18, "hsn": "9610", "unit": "pcs" },
+  { "name": "Soft Board 1x1.5 Ft", "gstPercent": 18, "hsn": "9610", "unit": "pcs" },
+  { "name": "Soft Board 2x3 Ft", "gstPercent": 18, "hsn": "9610", "unit": "pcs" },
+  { "name": "Lamination Sheet 80 Micron A4 Pack", "gstPercent": 18, "hsn": "3919", "unit": "pack" },
+  { "name": "Lamination Sheet 125 Micron A4 Pack", "gstPercent": 18, "hsn": "3919", "unit": "pack" },
+  { "name": "Lamination Sheet A5 Pack", "gstPercent": 18, "hsn": "3919", "unit": "pack" },
+  { "name": "Id Card Lamination Sheet Pack", "gstPercent": 18, "hsn": "3919", "unit": "pack" },
+  { "name": "Laminated Folder A4", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Filing Cabinet Accessory Set", "gstPercent": 18, "hsn": "8305", "unit": "set" },
+  { "name": "Tag String Pack 100", "gstPercent": 18, "hsn": "5609", "unit": "pack" },
+  { "name": "File Board A4", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "File Board Long", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Index Card 100 Pcs", "gstPercent": 18, "hsn": "4820", "unit": "pack" },
+  { "name": "Pen Drive 8GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Pen Drive 16GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Pen Drive 32GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Pen Drive 64GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Pen Drive 128GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "SanDisk Pen Drive 16GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "SanDisk Pen Drive 32GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "HP Pen Drive 32GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Kingston Pen Drive 16GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Transcend Pen Drive 32GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "OTG Pen Drive 32GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Micro SD Card 16GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Micro SD Card 32GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Micro SD Card 64GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Memory Card Adapter", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "CD-R Blank Pack 10", "gstPercent": 18, "hsn": "8523", "unit": "pack" },
+  { "name": "DVD-R Blank Pack 10", "gstPercent": 18, "hsn": "8523", "unit": "pack" },
+  { "name": "CD Marker Pen", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "USB Cable Type A to B", "gstPercent": 18, "hsn": "8544", "unit": "pcs" },
+  { "name": "USB Hub 4 Port", "gstPercent": 18, "hsn": "8471", "unit": "pcs" },
+  { "name": "Batteries AA Pack 4", "gstPercent": 18, "hsn": "8506", "unit": "pack" },
+  { "name": "Batteries AAA Pack 4", "gstPercent": 18, "hsn": "8506", "unit": "pack" },
+  { "name": "Extension Board 4 Socket", "gstPercent": 18, "hsn": "8536", "unit": "pcs" },
+  { "name": "Bubble Wrap Roll 1m", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Packaging Foam Sheet", "gstPercent": 18, "hsn": "3919", "unit": "pcs" },
+  { "name": "Zip Lock Bag Pack", "gstPercent": 18, "hsn": "3923", "unit": "pack" },
+  { "name": "Plastic Carry Bag Pack", "gstPercent": 18, "hsn": "3923", "unit": "pack" },
+  { "name": "Courier Bag A4 Pack 10", "gstPercent": 18, "hsn": "3923", "unit": "pack" },
+  { "name": "Paper Weight", "gstPercent": 18, "hsn": "8306", "unit": "pcs" },
+  { "name": "Magnifying Glass", "gstPercent": 18, "hsn": "9001", "unit": "pcs" },
+  { "name": "Cello Tape Half Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Cello Tape 1 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Cello Tape 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Brown Tape 1 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Brown Tape 2 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Double Sided Tape 1 Inch", "gstPercent": 18, "hsn": "3919", "unit": "roll" },
+  { "name": "Gel Pen Blue 0.5mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Gel Pen Black 0.5mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Gel Pen Red 0.5mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ball Pen Blue 0.7mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ball Pen Black 0.7mm", "gstPercent": 18, "hsn": "9608", "unit": "pcs" }
+];
+
+// ===== INDEXEDDB LAYER =====
+const DB = (() => {
+  let db = null;
+
+  async function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open('LocalInvoiceDB', 1);
+      req.onupgradeneeded = (e) => {
+        const d = e.target.result;
+        if (!d.objectStoreNames.contains('invoices'))
+          d.createObjectStore('invoices', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('items'))
+          d.createObjectStore('items', { keyPath: 'name' });
+        if (!d.objectStoreNames.contains('settings'))
+          d.createObjectStore('settings', { keyPath: 'key' });
+      };
+      req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+      req.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  function tx(store, mode = 'readonly') {
+    return db.transaction(store, mode).objectStore(store);
+  }
+
+  function getAll(store) {
+    return new Promise((resolve, reject) => {
+      const req = tx(store).getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function putRecord(store, record) {
+    return new Promise((resolve, reject) => {
+      const req = tx(store, 'readwrite').put(record);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function putAll(store, records) {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(store, 'readwrite');
+      const s = transaction.objectStore(store);
+      s.clear();
+      records.forEach(r => s.put(r));
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
+  return {
+    init: openDB,
+
+    getInvoices: () => getAll('invoices'),
+    saveInvoices: (arr) => putAll('invoices', arr),
+
+    getItems: () => getAll('items'),
+    saveItems: (arr) => putAll('items', arr),
+
+    getSettings: async () => {
+      return new Promise((resolve) => {
+        const req = tx('settings').get('main');
+        req.onsuccess = () => resolve(req.result?.data || {});
+        req.onerror = () => resolve({});
+      });
+    },
+    saveSettings: (obj) => putRecord('settings', { key: 'main', data: obj }),
+
+    _formatInvoiceNumber: (n) => {
+      const cached = JSON.parse(localStorage.getItem('li_settings_cache') || '{}');
+      const prefix = (cached.invoicePrefix || 'PBD').toUpperCase();
+      return `${prefix}-${String(n).padStart(4, '0')}`;
+    },
+    nextInvoiceNumber: () => {
+      const n = parseInt(localStorage.getItem('li_counter') || '0') + 1;
+      localStorage.setItem('li_counter', String(n));
+      return DB._formatInvoiceNumber(n);
+    },
+    peekNextNumber: () => {
+      const n = parseInt(localStorage.getItem('li_counter') || '0') + 1;
+      return DB._formatInvoiceNumber(n);
+    }
+  };
+})();
+
+// ===== INIT / SEED =====
+async function initApp() {
+  await DB.init();
+
+  const items = await DB.getItems();
+  if (items.length === 0) {
+    await DB.saveItems(SEED_ITEMS);
+  }
+  if (!localStorage.getItem('li_counter')) {
+    localStorage.setItem('li_counter', '0');
+  }
+
+  const s = await DB.getSettings();
+  localStorage.setItem('li_settings_cache', JSON.stringify(s));
+
+  if (!s.shopName) {
+    navigate('settings');
+    showToast('Welcome! Please fill your shop details first.');
+  } else {
+    navigate('new');
+  }
+}
+
+// ===== NAVIGATION =====
+let currentPage = 'new';
+let currentInvoiceId = null;
+let isReadOnly = false;
+
+function navigate(page, invoiceId) {
+  currentPage = page;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+
+  if (page === 'new') {
+    document.getElementById('page-new').classList.add('active');
+    document.getElementById('nav-new').classList.add('active');
+    if (invoiceId) {
+      loadInvoice(invoiceId);
+    } else {
+      // Always reset to a fresh blank invoice when navigating to New Invoice
+      resetNewInvoice();
+    }
+  } else if (page === 'history') {
+    document.getElementById('page-history').classList.add('active');
+    document.getElementById('nav-history').classList.add('active');
+    renderHistory();
+  } else if (page === 'items') {
+    document.getElementById('page-items').classList.add('active');
+    document.getElementById('nav-items').classList.add('active');
+    renderInventory();
+  } else if (page === 'settings') {
+    document.getElementById('page-settings').classList.add('active');
+    document.getElementById('nav-settings').classList.add('active');
+    loadSettings();
+  }
+}
+
+// ===== UTILITY =====
+function titleCase(str) {
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function formatCurrency(n) {
+  return '₹' + Number(n).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length !== 3) return iso;
+  return parts[2] + '/' + parts[1] + '/' + parts[0];
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function showError(msg) {
+  const el = document.getElementById('invoice-error');
+  el.textContent = msg;
+  el.classList.add('show');
+  el.style.display = 'block';
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => { el.classList.remove('show'); el.style.display = 'none'; }, 5000);
+}
+
+function hideError() {
+  const el = document.getElementById('invoice-error');
+  el.classList.remove('show');
+  el.style.display = 'none';
+}
+
+// ===== MODAL =====
+let modalCallback = null;
+function showConfirm(title, message, callback) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-message').textContent = message;
+  document.getElementById('confirm-modal').classList.add('show');
+  modalCallback = callback;
+  document.getElementById('modal-confirm-btn').onclick = () => {
+    const cb = modalCallback;
+    closeModal();
+    if (cb) cb();
+  };
+}
+function closeModal() {
+  document.getElementById('confirm-modal').classList.remove('show');
+  modalCallback = null;
+}
+
+// ===== GST CALCULATION =====
+function calcGST(finalPrice, gstPercent) {
+  const base = finalPrice / (1 + gstPercent / 100);
+  const gstAmount = finalPrice - base;
+  return {
+    base: Math.round(base * 100) / 100,
+    gstAmount: Math.round(gstAmount * 100) / 100,
+    cgst: Math.round((gstAmount / 2) * 100) / 100,
+    sgst: Math.round((gstAmount / 2) * 100) / 100
+  };
+}
+
+function calcInvoiceTotals(items) {
+  let totalBase = 0, totalGST = 0, grandTotal = 0;
+  const rows = items.map(item => {
+    const qty = parseFloat(item.quantity) || 0;
+    const fp = parseFloat(item.finalPrice) || 0;
+    const lineTotal = fp * qty;
+    const g = calcGST(fp, parseFloat(item.gstPercent) || 0);
+    totalBase += g.base * qty;
+    totalGST += g.gstAmount * qty;
+    grandTotal += lineTotal;
+    return { ...item, basePrice: g.base, gstAmount: g.gstAmount, cgst: g.cgst, sgst: g.sgst, lineTotal };
+  });
+  return {
+    rows,
+    totalBase: Math.round(totalBase * 100) / 100,
+    totalCGST: Math.round((totalGST / 2) * 100) / 100,
+    totalSGST: Math.round((totalGST / 2) * 100) / 100,
+    grandTotal: Math.round(grandTotal * 100) / 100
+  };
+}
+
+// ===== AUTOCOMPLETE =====
+let activeAutocompleteRow = null;
+let highlightedIdx = -1;
+let globalAutocomplete = null;
+
+function hideAllAutocomplete() {
+  if (globalAutocomplete) globalAutocomplete.classList.remove('show');
+}
+
+// Hide dropdown on scrolling so it doesn't float disconnectedly
+window.addEventListener('scroll', hideAllAutocomplete, {passive: true});
+document.addEventListener('scroll', function(e) {
+  if (e.target && e.target.classList && e.target.classList.contains('items-table-wrap')) {
+    hideAllAutocomplete();
+  }
+}, true);
+
+async function searchItems(query) {
+  const items = await DB.getItems();
+  const q = query.toLowerCase().trim();
+  if (!q) return { results: [], total: 0 };
+  const all = items.filter(i => i.name.toLowerCase().includes(q));
+  return { results: all.slice(0, 8), total: all.length };
+}
+
+function showAutocomplete(inputEl, suggestionsData) {
+  if (!globalAutocomplete) {
+    globalAutocomplete = document.createElement('div');
+    globalAutocomplete.className = 'autocomplete-list';
+    document.body.appendChild(globalAutocomplete);
+  }
+  
+  const suggestions = suggestionsData.results || [];
+  const total = suggestionsData.total || 0;
+  
+  if (suggestions.length === 0) {
+    globalAutocomplete.classList.remove('show');
+    return;
+  }
+  
+  highlightedIdx = -1;
+  let html = suggestions.map((item, i) =>
+    `<div class="autocomplete-item" data-index="${i}" data-name="${item.name}" data-gst="${item.gstPercent}" data-hsn="${item.hsn || ''}" data-unit="${item.unit || ''}">
+      <span>${item.name}</span>
+      <span class="gst-tag">${item.gstPercent}% GST</span>
+    </div>`
+  ).join('');
+
+  if (total > 8) {
+    html += `<div style="padding:6px 12px;font-size:0.75rem;color:var(--gray-400);
+      border-top:1px solid var(--gray-200);">
+      Showing 8 of ${total}. Type more to narrow down.
+    </div>`;
+  }
+  
+  globalAutocomplete.innerHTML = html;
+
+  // Position it absolutely on the document body matching the input layout
+  const rect = inputEl.getBoundingClientRect();
+  globalAutocomplete.style.top = (rect.bottom + window.scrollY) + 'px';
+  globalAutocomplete.style.left = (rect.left + window.scrollX) + 'px';
+  globalAutocomplete.style.width = rect.width + 'px';
+
+  globalAutocomplete.classList.add('show');
+
+  globalAutocomplete.querySelectorAll('.autocomplete-item').forEach(el => {
+    el.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      selectAutocompleteItem(inputEl, el.dataset.name, parseInt(el.dataset.gst), el.dataset.hsn, el.dataset.unit);
+      globalAutocomplete.classList.remove('show');
+    });
+  });
+}
+
+function selectAutocompleteItem(inputEl, name, gstPercent, hsn, unit) {
+  inputEl.value = name;
+  const row = inputEl.closest('tr');
+  const gstInput = row.querySelector('.item-gst');
+  const hsnInput = row.querySelector('.item-hsn');
+  const unitInput = row.querySelector('.item-unit');
+  gstInput.value = gstPercent;
+  gstInput.disabled = true;
+  hsnInput.value = hsn || '';
+  unitInput.value = unit || 'pcs';
+  // Move focus to qty
+  row.querySelector('.item-qty').focus();
+  recalcRow(row);
+}
+
+// ===== ITEM ROWS =====
+let rowCounter = 0;
+
+function addItemRow(data) {
+  rowCounter++;
+  const tbody = document.getElementById('items-tbody');
+  const tr = document.createElement('tr');
+  tr.dataset.rowId = rowCounter;
+
+  // We cannot await here if keeping it sync. We run it asynchronously later:
+  let isKnown = false;
+
+  tr.innerHTML = `
+    <td class="col-sr" style="text-align:center;font-weight:600;color:var(--gray-400);"></td>
+    <td class="col-name">
+      <div style="position:relative;">
+        <input type="text" class="item-name" placeholder="Type item name..." value="${data ? data.name : ''}" autocomplete="off" ${isReadOnly ? 'disabled' : ''}>
+      </div>
+    </td>
+    <td class="col-hsn">
+      <input type="text" class="item-hsn" value="${data && data.hsn ? data.hsn : ''}" placeholder="HSN" ${isReadOnly ? 'disabled' : ''}>
+    </td>
+    <td class="col-gst">
+      <input type="number" class="item-gst" min="0" max="28" step="1" value="${data ? data.gstPercent : ''}" placeholder="%" ${isKnown || isReadOnly ? 'disabled' : ''}>
+    </td>
+    <td class="col-qty">
+      <input type="number" class="item-qty" min="1" step="0.01" value="${data ? data.quantity : '1'}" placeholder="1" ${isReadOnly ? 'disabled' : ''}>
+    </td>
+    <td class="col-unit">
+      <input type="text" class="item-unit" value="${data && data.unit ? data.unit : 'pcs'}" placeholder="Unit" ${isReadOnly ? 'disabled' : ''}>
+    </td>
+    <td class="col-price">
+      <input type="number" class="item-price" min="0" step="0.01" value="${data ? data.finalPrice : ''}" placeholder="₹" ${isReadOnly ? 'disabled' : ''}>
+    </td>
+    <td class="col-base computed">${data ? formatCurrency(calcGST(data.finalPrice || 0, data.gstPercent || 0).base) : '—'}</td>
+    <td class="col-gstamt computed">${data ? formatCurrency(calcGST(data.finalPrice || 0, data.gstPercent || 0).gstAmount) : '—'}</td>
+    <td class="col-total computed">${data ? formatCurrency((data.finalPrice || 0) * (data.quantity || 0)) : '—'}</td>
+    <td class="col-action">${isReadOnly ? '' : '<button class="btn-remove-row" title="Remove item">×</button>'}</td>
+  `;
+  tbody.appendChild(tr);
+
+  // Event listeners
+  const nameInput = tr.querySelector('.item-name');
+  const gstInput = tr.querySelector('.item-gst');
+  const qtyInput = tr.querySelector('.item-qty');
+  const priceInput = tr.querySelector('.item-price');
+  const removeBtn = tr.querySelector('.btn-remove-row');
+
+  if (!isReadOnly) {
+    nameInput.addEventListener('input', async () => {
+      const val = nameInput.value.trim();
+      if (val.length > 0) {
+        const searchData = await searchItems(val);
+        showAutocomplete(nameInput, searchData);
+        // Check if typed name is a known item
+        const items = await DB.getItems();
+        const exact = items.find(i => i.name.toLowerCase() === val.toLowerCase());
+        if (exact) {
+          gstInput.value = exact.gstPercent;
+          gstInput.disabled = true;
+          tr.querySelector('.item-hsn').value = exact.hsn || '';
+          tr.querySelector('.item-unit').value = exact.unit || 'pcs';
+        } else {
+          gstInput.disabled = false;
+        }
+      } else {
+        hideAllAutocomplete();
+        gstInput.disabled = false;
+      }
+      recalcRow(tr);
+    });
+
+    nameInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        hideAllAutocomplete();
+        // Title case on blur
+        if (nameInput.value.trim()) {
+          nameInput.value = titleCase(nameInput.value.trim());
+        }
+      }, 200);
+    });
+
+    nameInput.addEventListener('keydown', (e) => {
+      const list = globalAutocomplete;
+      if (list && list.classList.contains('show')) {
+        const items = list.querySelectorAll('.autocomplete-item');
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          highlightedIdx = Math.min(highlightedIdx + 1, items.length - 1);
+          items.forEach((el, i) => el.classList.toggle('highlighted', i === highlightedIdx));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          highlightedIdx = Math.max(highlightedIdx - 1, 0);
+          items.forEach((el, i) => el.classList.toggle('highlighted', i === highlightedIdx));
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (highlightedIdx >= 0 && items[highlightedIdx]) {
+            const el = items[highlightedIdx];
+            selectAutocompleteItem(nameInput, el.dataset.name, parseInt(el.dataset.gst), el.dataset.hsn, el.dataset.unit);
+            list.classList.remove('show');
+          } else {
+            qtyInput.focus();
+          }
+        } else if (e.key === 'Escape') {
+          list.classList.remove('show');
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        qtyInput.focus();
+      }
+    });
+
+    gstInput.addEventListener('input', () => recalcRow(tr));
+    qtyInput.addEventListener('input', () => recalcRow(tr));
+    priceInput.addEventListener('input', () => recalcRow(tr));
+
+    qtyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); priceInput.focus(); }
+    });
+
+    priceInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addItemRow(); }
+    });
+
+    if (removeBtn) {
+      removeBtn.addEventListener('click', () => {
+        tr.remove();
+        renumberRows();
+        recalcTotals();
+      });
+    }
+  }
+
+  renumberRows();
+  if (!data && !isReadOnly) nameInput.focus();
+  if (data && data.name) {
+    DB.getItems().then(items => {
+      isKnown = items.some(i => i.name.toLowerCase() === data.name.toLowerCase().trim());
+      if (isKnown || isReadOnly) tr.querySelector('.item-gst').disabled = true;
+    });
+  }
+  if (data && data.name) {
+    DB.getItems().then(items => {
+      isKnown = items.some(i => i.name.toLowerCase() === data.name.toLowerCase().trim());
+      if (isKnown || isReadOnly) tr.querySelector('.item-gst').disabled = true;
+    });
+  }
+}
+
+function renumberRows() {
+  const rows = document.querySelectorAll('#items-tbody tr');
+  rows.forEach((tr, i) => {
+    tr.querySelector('.col-sr').textContent = i + 1;
+  });
+}
+
+function recalcRow(tr) {
+  const gst = parseFloat(tr.querySelector('.item-gst').value) || 0;
+  const qty = parseFloat(tr.querySelector('.item-qty').value) || 0;
+  const fp = parseFloat(tr.querySelector('.item-price').value) || 0;
+  const g = calcGST(fp, gst);
+  const lineTotal = fp * qty;
+
+  const cells = tr.querySelectorAll('.computed');
+  cells[0].textContent = fp > 0 ? formatCurrency(g.base) : '—';
+  cells[1].textContent = fp > 0 ? formatCurrency(g.gstAmount) : '—';
+  cells[2].textContent = (fp > 0 && qty > 0) ? formatCurrency(lineTotal) : '—';
+
+  recalcTotals();
+}
+
+function recalcTotals() {
+  const items = getItemsFromTable();
+  const t = calcInvoiceTotals(items);
+  document.getElementById('tot-base').textContent = formatCurrency(t.totalBase);
+  document.getElementById('tot-cgst').textContent = formatCurrency(t.totalCGST);
+  document.getElementById('tot-sgst').textContent = formatCurrency(t.totalSGST);
+  document.getElementById('tot-grand').textContent = formatCurrency(t.grandTotal);
+}
+
+function getItemsFromTable() {
+  const rows = document.querySelectorAll('#items-tbody tr');
+  return Array.from(rows).map(tr => ({
+    name: tr.querySelector('.item-name').value.trim(),
+    hsn: tr.querySelector('.item-hsn').value.trim(),
+    gstPercent: parseFloat(tr.querySelector('.item-gst').value) || 0,
+    quantity: parseFloat(tr.querySelector('.item-qty').value) || 0,
+    unit: tr.querySelector('.item-unit').value.trim() || 'pcs',
+    finalPrice: parseFloat(tr.querySelector('.item-price').value) || 0
+  })).filter(item => item.name || item.finalPrice > 0 || item.quantity > 0);
+}
+
+// ===== INVOICE OPERATIONS =====
+function resetNewInvoice() {
+  currentInvoiceId = null;
+  isReadOnly = false;
+  document.getElementById('btn-new-from-view').style.display = 'none';
+  hideError();
+  document.getElementById('inv-number').value = DB.peekNextNumber();
+  document.getElementById('inv-date').value = todayISO();
+  document.getElementById('inv-customer').value = '';
+  document.getElementById('inv-phone').value = '';
+  document.getElementById('inv-status-badge').className = 'badge badge-draft';
+  document.getElementById('inv-status-badge').textContent = 'DRAFT';
+  document.getElementById('items-tbody').innerHTML = '';
+  rowCounter = 0;
+
+  // Unlock fields
+  document.getElementById('inv-date').disabled = false;
+  document.getElementById('inv-customer').disabled = false;
+  document.getElementById('inv-phone').disabled = false;
+
+  // Show buttons
+  document.getElementById('btn-save-draft').classList.remove('hidden');
+  document.getElementById('btn-finalise').classList.remove('hidden');
+  document.getElementById('btn-add-row').classList.remove('hidden');
+
+  addItemRow();
+  fillShopDetails();
+  recalcTotals();
+}
+
+async function fillShopDetails() {
+  const s = await DB.getSettings();
+  document.getElementById('inv-shop-name').value = s.shopName || '';
+  document.getElementById('inv-shop-address').value = s.shopAddress || '';
+  document.getElementById('inv-shop-gst').value = s.gstNumber || '';
+
+  // Bank details
+  document.getElementById('inv-bank-name').textContent = s.bankName || '—';
+  document.getElementById('inv-acc-holder').textContent = s.accHolder || '—';
+  document.getElementById('inv-acc-number').textContent = s.accNumber || '—';
+  document.getElementById('inv-ifsc').textContent = s.ifsc || '—';
+  document.getElementById('inv-upi-id').textContent = s.upiId || '—';
+
+  // Generate QR
+  generateUPIQR(s.upiId, s.shopName);
+}
+
+function generateUPIQR(upiId, payeeName) {
+  const container = document.getElementById('qr-container');
+  container.innerHTML = '';
+  if (!upiId) return;
+  try {
+    if (typeof QRCode !== 'undefined') {
+      const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName || '')}&cu=INR`;
+      new QRCode(container, {
+        text: upiString,
+        width: 100,
+        height: 100,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+  } catch(e) {
+    container.textContent = 'QR unavailable';
+  }
+}
+
+function validateInvoice() {
+  const customer = document.getElementById('inv-customer').value.trim();
+  if (!customer) {
+    showError('Customer Name is required.');
+    document.getElementById('inv-customer').focus();
+    return false;
+  }
+  const items = getItemsFromTable();
+  if (items.length === 0) {
+    showError('At least one item is required.');
+    return false;
+  }
+  for (let i = 0; i < items.length; i++) {
+    if (!items[i].name) {
+      showError(`Item ${i+1}: Item name is blank.`);
+      return false;
+    }
+    if (items[i].quantity <= 0) {
+      showError(`Item "${items[i].name}": Quantity must be greater than zero.`);
+      return false;
+    }
+    if (items[i].finalPrice <= 0) {
+      showError(`Item "${items[i].name}": Price must be greater than zero.`);
+      return false;
+    }
+  }
+  hideError();
+  return true;
+}
+
+async function buildInvoiceData(finalize) {
+  const items = getItemsFromTable();
+  const totals = calcInvoiceTotals(items);
+  return {
+    id: currentInvoiceId || null,
+    date: document.getElementById('inv-date').value,
+    customerName: document.getElementById('inv-customer').value.trim(),
+    customerPhone: document.getElementById('inv-phone').value.trim(),
+    items: totals.rows,
+    totalBase: totals.totalBase,
+    totalCGST: totals.totalCGST,
+    totalSGST: totals.totalSGST,
+    grandTotal: totals.grandTotal,
+    status: finalize ? 'final' : 'draft',
+    shopSnapshot: await DB.getSettings()
+  };
+}
+
+async function saveDraft() {
+  if (!validateInvoice()) return;
+  const data = await buildInvoiceData(false);
+  const invoices = await DB.getInvoices();
+
+  if (data.id) {
+    const existing = invoices.find(i => i.id === data.id);
+    if (existing && existing.status === 'final') {
+      showError('This invoice is finalised and cannot be edited.');
+      return;
+    }
+    const idx = invoices.findIndex(i => i.id === data.id);
+    data.updatedAt = new Date().toISOString();
+    data.createdAt = existing.createdAt;
+    invoices[idx] = data;
+  } else {
+    data.id = DB.nextInvoiceNumber();
+    data.createdAt = new Date().toISOString();
+    data.updatedAt = data.createdAt;
+    invoices.unshift(data);
+  }
+
+  await DB.saveInvoices(invoices);
+  await saveNewItems(data.items);
+  currentInvoiceId = data.id;
+  document.getElementById('inv-number').value = data.id;
+  showToast('Draft saved: ' + data.id);
+}
+
+async function finaliseInvoice() {
+  if (!validateInvoice()) return;
+  showConfirm('Finalise Invoice', 'Once finalised, this invoice cannot be edited. Continue?', async () => {
+    const data = await buildInvoiceData(true);
+    const invoices = await DB.getInvoices();
+
+    if (data.id) {
+      const existing = invoices.find(i => i.id === data.id);
+      if (existing && existing.status === 'final') {
+        showError('This invoice is already finalised.');
+        return;
+      }
+      const idx = invoices.findIndex(i => i.id === data.id);
+      data.updatedAt = new Date().toISOString();
+      data.createdAt = existing.createdAt;
+      invoices[idx] = data;
+    } else {
+      data.id = DB.nextInvoiceNumber();
+      data.createdAt = new Date().toISOString();
+      data.updatedAt = data.createdAt;
+      invoices.unshift(data);
+    }
+
+    await DB.saveInvoices(invoices);
+    await saveNewItems(data.items);
+    currentInvoiceId = data.id;
+    document.getElementById('inv-number').value = data.id;
+
+    showToast('Invoice finalised: ' + data.id);
+    setReadOnly();
+    await renderPrintArea(data);
+    setTimeout(() => window.print(), 500);
+  });
+}
+
+async function saveNewItems(items) {
+  const savedItems = await DB.getItems();
+  items.forEach(item => {
+    const key = item.name.toLowerCase().trim();
+    const exists = savedItems.findIndex(i => i.name.toLowerCase() === key);
+    if (exists === -1 && item.name) {
+      savedItems.push({ name: titleCase(item.name), gstPercent: item.gstPercent, hsn: item.hsn, unit: item.unit });
+    }
+  });
+  await DB.saveItems(savedItems);
+}
+
+async function setReadOnly() {
+  isReadOnly = true;
+  document.getElementById('btn-new-from-view').style.display = 'inline-flex';
+  document.getElementById('inv-date').disabled = true;
+  document.getElementById('inv-customer').disabled = true;
+  document.getElementById('inv-phone').disabled = true;
+  document.querySelectorAll('#items-tbody input').forEach(el => el.disabled = true);
+  document.querySelectorAll('.btn-remove-row').forEach(el => el.style.display = 'none');
+  document.getElementById('btn-save-draft').classList.add('hidden');
+  document.getElementById('btn-finalise').classList.add('hidden');
+  document.getElementById('btn-add-row').classList.add('hidden');
+
+  const badge = document.getElementById('inv-status-badge');
+  const invoices = await DB.getInvoices();
+  const inv = invoices.find(i => i.id === currentInvoiceId);
+  if (inv) {
+    if (inv.status === 'final') {
+      badge.className = 'badge badge-final';
+      badge.textContent = 'FINAL';
+    } else if (inv.status === 'cancelled') {
+      badge.className = 'badge badge-cancelled';
+      badge.textContent = 'CANCELLED';
+    }
+  }
+}
+
+async function loadInvoice(invoiceId) {
+  const invoices = await DB.getInvoices();
+  const inv = invoices.find(i => i.id === invoiceId);
+  if (!inv) { showToast('Invoice not found'); return; }
+
+  currentInvoiceId = inv.id;
+  isReadOnly = false;
+
+  document.getElementById('inv-number').value = inv.id;
+  document.getElementById('inv-date').value = inv.date;
+  document.getElementById('inv-customer').value = inv.customerName || '';
+  document.getElementById('inv-phone').value = inv.customerPhone || '';
+
+  // Fill shop details from snapshot or current settings
+  const shop = inv.shopSnapshot || await DB.getSettings();
+  document.getElementById('inv-shop-name').value = shop.shopName || '';
+  document.getElementById('inv-shop-address').value = shop.shopAddress || '';
+  document.getElementById('inv-shop-gst').value = shop.gstNumber || '';
+  document.getElementById('inv-bank-name').textContent = shop.bankName || '—';
+  document.getElementById('inv-acc-holder').textContent = shop.accHolder || '—';
+  document.getElementById('inv-acc-number').textContent = shop.accNumber || '—';
+  document.getElementById('inv-ifsc').textContent = shop.ifsc || '—';
+  document.getElementById('inv-upi-id').textContent = shop.upiId || '—';
+  generateUPIQR(shop.upiId, shop.shopName);
+
+  // Status badge
+  const badge = document.getElementById('inv-status-badge');
+  if (inv.status === 'draft') {
+    badge.className = 'badge badge-draft';
+    badge.textContent = 'DRAFT';
+  } else if (inv.status === 'final') {
+    badge.className = 'badge badge-final';
+    badge.textContent = 'FINAL';
+  } else {
+    badge.className = 'badge badge-cancelled';
+    badge.textContent = 'CANCELLED';
+  }
+
+  // Items
+  document.getElementById('items-tbody').innerHTML = '';
+  rowCounter = 0;
+  (inv.items || []).forEach(item => addItemRow(item));
+  recalcTotals();
+
+  // Show/hide buttons
+  document.getElementById('btn-save-draft').classList.remove('hidden');
+  document.getElementById('btn-finalise').classList.remove('hidden');
+  document.getElementById('btn-add-row').classList.remove('hidden');
+
+  document.getElementById('inv-date').disabled = false;
+  document.getElementById('inv-customer').disabled = false;
+  document.getElementById('inv-phone').disabled = false;
+
+  if (inv.status !== 'draft') {
+    setReadOnly();
+  }
+
+  // Render print area for final invoices
+  if (inv.status === 'final') {
+    await renderPrintArea(inv);
+  }
+}
+
+function numberToWords(n) {
+  n = Math.round(n);
+  if (n === 0) return 'Rupees Zero Only';
+  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
+    'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen',
+    'Seventeen','Eighteen','Nineteen'];
+  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function toWords(num) {
+    if (num === 0) return '';
+    if (num < 20) return ones[num] + ' ';
+    if (num < 100) return tens[Math.floor(num/10)] + ' ' + toWords(num % 10);
+    if (num < 1000) return ones[Math.floor(num/100)] + ' Hundred ' + toWords(num % 100);
+    if (num < 100000) return toWords(Math.floor(num/1000)) + 'Thousand ' + toWords(num % 1000);
+    if (num < 10000000) return toWords(Math.floor(num/100000)) + 'Lakh ' + toWords(num % 100000);
+    return toWords(Math.floor(num/10000000)) + 'Crore ' + toWords(num % 10000000);
+  }
+  return 'Rupees ' + toWords(n).trim() + ' Only';
+}
+
+// ===== PRINT AREA =====
+async function renderPrintArea(inv) {
+  const shop = inv.shopSnapshot || await DB.getSettings();
+  const el = document.getElementById('print-content');
+  
+  document.title = `Invoice-${inv.id}`;
+
+  const items = inv.items || [];
+  const itemCount = items.length;
+  
+  let itemsHTML = '';
+  items.forEach((item, i) => {
+    const g = calcGST(item.finalPrice, item.gstPercent);
+    const lt = item.finalPrice * item.quantity;
+    itemsHTML += `<tr>
+      <td style="text-align:center">${i+1}</td>
+      <td style="font-weight:600">${item.name}</td>
+      <td style="text-align:center;font-size:0.8rem">${item.hsn || ''}</td>
+      <td style="text-align:center">${item.gstPercent}%</td>
+      <td style="text-align:right">${item.quantity}</td>
+      <td style="text-align:center;font-size:0.8rem">${item.unit || ''}</td>
+      <td style="text-align:right">${g.base.toFixed(2)}</td>
+      <td style="text-align:right">${(g.gstAmount * item.quantity).toFixed(2)}</td>
+      <td style="text-align:right">${lt.toFixed(2)}</td>
+    </tr>`;
+  });
+
+  const cgst = inv.totalCGST || 0;
+  const sgst = inv.totalSGST || 0;
+  const taxStr = `₹${(cgst + sgst).toFixed(2)}`;
+
+  el.innerHTML = `
+<div class="invoice-border-box" style="position:relative; padding:0; overflow:hidden; background:#fff; box-shadow:0 0 10px rgba(0,0,0,0.1); border:none;">
+
+  <!-- TOP-RIGHT CORNER SQUARES -->
+  <div style="position:absolute;top:0;right:0;width:50px;height:50px;">
+    <div class="corner-accent-dark" style="position:absolute;top:0;right:0;
+      width:28px;height:28px;background:#1a1a2e;"></div>
+    <div class="corner-accent-color" style="position:absolute;top:14px;right:14px;
+      width:20px;height:20px;background:#c0392b;"></div>
+  </div>
+
+  <!-- BOTTOM-LEFT CORNER SQUARES -->
+  <div style="position:absolute;bottom:0;left:0;width:50px;height:50px;">
+    <div class="corner-accent-color" style="position:absolute;bottom:14px;left:14px;
+      width:20px;height:20px;background:#c0392b;"></div>
+    <div class="corner-accent-dark" style="position:absolute;bottom:0;left:0;
+      width:28px;height:28px;background:#1a1a2e;"></div>
+  </div>
+
+  <div style="padding:20px 24px 16px;">
+
+    <!-- HEADER -->
+    <div style="display:flex;justify-content:space-between;align-items:center;
+      padding-bottom:14px;border-bottom:2px solid #1a1a2e;" class="header-border-line">
+      <div>
+        <div style="font-size:22pt;font-weight:900;color:#1a1a2e;line-height:1;">
+          ${shop.shopName || 'Shop Name'}
+        </div>
+        <div style="font-size:9pt;color:#888;font-style:italic;margin-top:4px;">
+          ${shop.shopAddress || ''}
+        </div>
+        <div style="font-size:9pt;color:#555;font-weight:600;">
+          GSTIN: ${shop.gstNumber || 'N/A'}
+        </div>
+      </div>
+      <div class="invoice-label-block" style="background:#c0392b;color:#fff;
+        padding:12px 28px;font-size:26pt;font-weight:900;letter-spacing:1px;">
+        INVOICE
+      </div>
+    </div>
+
+    <!-- META ROW -->
+    <div style="display:flex;justify-content:space-between;
+      padding:16px 0 14px;align-items:flex-start;">
+      <div>
+        <div style="font-size:9pt;color:#888;font-weight:600;
+          text-transform:uppercase;margin-bottom:4px;">Invoice to:</div>
+        <div style="font-size:14pt;font-weight:800;color:#1a1a2e;">
+          ${inv.customerName || ''}
+        </div>
+        <div style="font-size:9.5pt;color:#555;margin-top:2px;">
+          ${inv.customerPhone || ''}
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <table style="border:none;font-size:10.5pt;margin-left:auto;">
+          <tr>
+            <td style="border:none;font-weight:600;padding:2px 12px 2px 0;
+              color:#888;">Invoice #</td>
+            <td style="border:none;font-weight:800;color:#1a1a2e;">${inv.id}</td>
+          </tr>
+          <tr>
+            <td style="border:none;font-weight:600;padding:2px 12px 2px 0;
+              color:#888;">Date</td>
+            <td style="border:none;font-weight:800;color:#1a1a2e;">${formatDate(inv.date)}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ITEMS TABLE -->
+    <style>
+      .print-items-table tbody tr:nth-child(odd) td { background: #ffffff; }
+      .print-items-table tbody tr:nth-child(even) td { background: #f7f7f7; }
+      .print-items-table tbody tr td { border-bottom: 1px solid #e0e0e0; border-right: 1px solid #ddd; padding: 6px 10px; }
+      .print-items-table tbody tr td:last-child { border-right: 1px solid #e0e0e0; }
+      .print-items-table tbody tr td:first-child { border-left: 1px solid #e0e0e0; }
+    </style>
+    <table class="print-items-table" style="width:100%;border-collapse:collapse;margin-bottom:15px;font-size:10.5pt;color:#1a1a2e;">
+      <thead>
+        <tr>
+          <th style="background:#1a1a2e;color:#ffffff;font-size:10pt;text-transform:uppercase;letter-spacing:0.05em;padding:8px 10px;border:1px solid #ddd;border-right:1px solid #ddd;font-weight:600;width:30px;text-align:center;">No</th>
+          <th style="background:#1a1a2e;color:#ffffff;font-size:10pt;text-transform:uppercase;letter-spacing:0.05em;padding:8px 10px;border:1px solid #ddd;border-right:1px solid #ddd;font-weight:600;text-align:left;">Item Description</th>
+          <th style="background:#1a1a2e;color:#ffffff;font-size:10pt;text-transform:uppercase;letter-spacing:0.05em;padding:8px 10px;border:1px solid #ddd;border-right:1px solid #ddd;font-weight:600;width:50px;text-align:center;">HSN</th>
+          <th style="background:#1a1a2e;color:#ffffff;font-size:10pt;text-transform:uppercase;letter-spacing:0.05em;padding:8px 10px;border:1px solid #ddd;border-right:1px solid #ddd;font-weight:600;width:50px;text-align:center;">GST%</th>
+          <th style="background:#1a1a2e;color:#ffffff;font-size:10pt;text-transform:uppercase;letter-spacing:0.05em;padding:8px 10px;border:1px solid #ddd;border-right:1px solid #ddd;font-weight:600;width:50px;text-align:right;">Qty</th>
+          <th style="background:#1a1a2e;color:#ffffff;font-size:10pt;text-transform:uppercase;letter-spacing:0.05em;padding:8px 10px;border:1px solid #ddd;border-right:1px solid #ddd;font-weight:600;width:40px;text-align:center;">Unit</th>
+          <th style="background:#1a1a2e;color:#ffffff;font-size:10pt;text-transform:uppercase;letter-spacing:0.05em;padding:8px 10px;border:1px solid #ddd;border-right:1px solid #ddd;font-weight:600;width:70px;text-align:right;">Rate (₹)</th>
+          <th style="background:#1a1a2e;color:#ffffff;font-size:10pt;text-transform:uppercase;letter-spacing:0.05em;padding:8px 10px;border:1px solid #ddd;border-right:1px solid #ddd;font-weight:600;width:80px;text-align:right;">GST Amt (₹)</th>
+          <th style="background:#1a1a2e;color:#ffffff;font-size:10pt;text-transform:uppercase;letter-spacing:0.05em;padding:8px 10px;border:1px solid #ddd;font-weight:600;width:80px;text-align:right;">Total (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHTML}
+      </tbody>
+    </table>
+
+    <!-- TOTALS BLOCK -->
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <div style="width:240px;text-align:right;">
+        <table style="width:100%;border-collapse:collapse;font-size:11pt;color:#1a1a2e;">
+          <tr class="totals-subtotal-row" style="background:#f0f0f0;">
+            <td style="padding:9px 14px;font-weight:600;border:none;">Sub Total</td>
+            <td style="padding:9px 14px;font-weight:600;border:none;">₹${inv.totalBase.toFixed(2)}</td>
+          </tr>
+          <tr class="totals-tax-row" style="background:#f0f0f0;">
+            <td style="padding:6px 14px 9px;font-weight:600;border:none;">Tax (CGST+SGST)</td>
+            <td style="padding:6px 14px 9px;font-weight:600;border:none;">${taxStr}</td>
+          </tr>
+          <tr class="totals-grand-row" style="background:#c0392b;color:#ffffff;">
+            <td style="padding:10px 14px;font-weight:800;font-size:13pt;border:none;">TOTAL</td>
+            <td style="padding:10px 14px;font-weight:800;font-size:13pt;border:none;">₹${inv.grandTotal.toFixed(2)}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    
+    <!-- AMOUNT IN WORDS -->
+    <div class="amount-words" style="text-align:right;font-style:italic;font-size:10pt;color:#555;margin-bottom:24px;">
+      ${numberToWords(Math.round(inv.grandTotal || 0))}
+    </div>
+
+    <!-- PAYMENT INFO SECTION -->
+    <div class="payment-section" style="display:flex;border-top:1px solid #ddd;padding-top:16px;margin-bottom:16px;">
+      <div style="flex:1;border-right:1px solid #ddd;padding-right:20px;">
+        <div style="font-weight:800;color:#1a1a2e;margin-bottom:6px;font-size:10pt;">Payment Info:</div>
+        <table style="border:none;font-size:9.5pt;color:#1a1a2e;line-height:1.5;">
+          <tr><td style="border:none;padding:0 8px 0 0;">Account # :</td><td style="border:none;padding:0;font-weight:600;">${shop.accNumber || '—'}</td></tr>
+          <tr><td style="border:none;padding:0 8px 0 0;">A/C Name:</td><td style="border:none;padding:0;font-weight:600;">${shop.accHolder || '—'}</td></tr>
+          <tr><td style="border:none;padding:0 8px 0 0;">Bank:</td><td style="border:none;padding:0;font-weight:600;">${shop.bankName || '—'}</td></tr>
+          <tr><td style="border:none;padding:0 8px 0 0;">IFSC:</td><td style="border:none;padding:0;font-weight:600;">${shop.ifsc || '—'}</td></tr>
+          <tr><td style="border:none;padding:0 8px 0 0;">UPI ID:</td><td style="border:none;padding:0;font-weight:600;">${shop.upiId || '—'}</td></tr>
+        </table>
+      </div>
+      <div style="flex:1;padding-left:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div id="qr-print" style="width:80px;height:80px;"></div>
+        <div style="font-size:9pt;color:#555;font-weight:600;margin-top:4px;margin-bottom:8px;">Scan to Pay</div>
+        <div style="font-size:9pt;color:#1a1a2e;text-align:center;line-height:1.4;">
+          ${shop.shopPhone ? `📞 ${shop.shopPhone}<br>` : ''}
+          📍 ${shop.shopAddress || ''}<br>
+          ${shop.shopEmail ? `✉ ${shop.shopEmail}<br>` : ''}
+          <span style="font-weight:600">GSTIN: ${shop.gstNumber || 'N/A'}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER STRIP -->
+    <div class="invoice-footer" style="display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #ddd;padding-top:16px;">
+      <div style="font-size:9pt;color:#1a1a2e;flex:1;">
+        ${shop.shopPhone ? `☎ ${shop.shopPhone} / ` : ''}📍 ${shop.shopAddress || ''}
+        ${shop.shopEmail || shop.shopWebsite ? `<br>` : ''}
+        ${shop.shopEmail ? `✉ ${shop.shopEmail} ` : ''}
+        ${shop.shopEmail && shop.shopWebsite ? `/ ` : ''}
+        ${shop.shopWebsite ? `🌐 ${shop.shopWebsite}` : ''}
+      </div>
+      <div style="flex:1;"></div>
+      <div style="flex:1;text-align:right;">
+        <div style="border-bottom:1px solid #1a1a2e;width:160px;margin-left:auto;margin-bottom:4px;height:24px;"></div>
+        <div style="font-size:10pt;color:#1a1a2e;font-weight:600;text-align:center;width:160px;margin-left:auto;">Authorised Sign</div>
+      </div>
+    </div>
+
+    <!-- DISCLAIMER -->
+    <div class="print-disclaimer" style="text-align:center;font-size:8pt;color:#888;font-style:italic;margin-top:24px;">
+      This is a computer-generated invoice. No signature required.
+    </div>
+
+  </div>
+</div>
+  `;
+
+  // Generate QR in print area
+  const qrPrint = document.getElementById('qr-print');
+  if (qrPrint && shop.upiId && typeof QRCode !== 'undefined') {
+    qrPrint.innerHTML = '';
+    try {
+      new QRCode(qrPrint, {
+        text: `upi://pay?pa=${shop.upiId}&pn=${encodeURIComponent(shop.shopName || '')}&am=${inv.grandTotal}&cu=INR`,
+        width: 80,
+        height: 80,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(e) {}
+  }
+}
+
+// ===== PDF DOWNLOAD =====
+async function downloadPDF() {
+  let inv;
+  if (currentInvoiceId) {
+    const invoices = await DB.getInvoices();
+    inv = invoices.find(i => i.id === currentInvoiceId);
+  }
+  if (!inv) {
+    // Build from current form for unsaved draft
+    if (!validateInvoice()) return;
+    inv = await buildInvoiceData(false);
+    inv.id = document.getElementById('inv-number').value;
+    if (!inv.shopSnapshot) inv.shopSnapshot = await DB.getSettings();
+  }
+
+  if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+    showToast('PDF libraries not loaded. Please check internet connection.');
+    return;
+  }
+
+  showToast('Generating PDF...');
+
+  // Create an off-screen wrapper at fixed A4 pixel width (794px ≈ 210mm @96dpi)
+  let wrapper = document.getElementById('pdf-capture-wrapper');
+  if (!wrapper) {
+    wrapper = document.createElement('div');
+    wrapper.id = 'pdf-capture-wrapper';
+    document.body.appendChild(wrapper);
+  }
+
+  // Move print area into the wrapper and make it visible
+  const el = document.getElementById('invoice-print-area');
+  wrapper.appendChild(el);
+  el.style.display = 'block';
+
+  // Render print content
+  await renderPrintArea(inv);
+
+  // Wait for QR code to render
+  await new Promise(r => setTimeout(r, 600));
+
+  try {
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      width: 794,
+      windowWidth: 794
+    });
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pageW = pdf.internal.pageSize.getWidth();   // 210mm
+    const pageH = pdf.internal.pageSize.getHeight();  // 297mm
+    const imgH  = (canvas.height * pageW) / canvas.width;
+
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, imgH > pageH ? pageH : imgH);
+    pdf.save('Invoice-' + inv.id + '.pdf');
+    showToast('PDF downloaded!');
+  } catch(e) {
+    showToast('PDF failed: ' + e.message);
+    console.error(e);
+  }
+
+  // Move print area back to its original place and hide it
+  document.body.appendChild(el);
+  el.style.display = 'none';
+}
+
+// ===== INVOICE HISTORY =====
+async function renderHistory(filter) {
+  const invoices = await DB.getInvoices();
+  const container = document.getElementById('invoice-list-container');
+
+  let filtered = invoices;
+  if (filter) {
+    const q = filter.toLowerCase().trim();
+    filtered = invoices.filter(inv =>
+      (inv.customerName && inv.customerName.toLowerCase().includes(q)) ||
+      (inv.id && inv.id.toLowerCase().includes(q))
+    );
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">📋</div>
+        <p>${filter ? 'No invoices match your search.' : 'No invoices yet. Create your first invoice!'}</p>
+      </div>`;
+  } else {
+    // Sort by date descending, then ID descending
+    filtered.sort((a, b) => {
+      if (a.date > b.date) return -1;
+      if (a.date < b.date) return 1;
+      if (a.id > b.id) return -1;
+      if (a.id < b.id) return 1;
+      return 0;
+    });
+
+    const groups = {};
+    filtered.forEach(inv => {
+      const d = inv.date || 'Unknown Date';
+      if (!groups[d]) groups[d] = [];
+      groups[d].push(inv);
+    });
+
+    let html = '';
+    for (const d of Object.keys(groups)) {
+      html += `<div style="margin-top: 24px; margin-bottom: 12px; font-weight: 800; font-size: 1.1rem; color: var(--gray-700); padding-bottom: 4px; border-bottom: 2px solid var(--gray-200);">${formatDate(d)}</div>`;
+      html += groups[d].map(inv => {
+        let badgeClass = 'badge-draft';
+        let statusText = 'DRAFT';
+        if (inv.status === 'final') { badgeClass = 'badge-final'; statusText = 'FINAL'; }
+        else if (inv.status === 'cancelled') { badgeClass = 'badge-cancelled'; statusText = 'CANCELLED'; }
+
+        let actions = `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openInvoice('${inv.id}')">Edit</button>`;
+        if (inv.status === 'final') {
+          actions += ` <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();reprintInvoice('${inv.id}')">Reprint</button>`;
+        }
+
+        return `
+          <div class="invoice-row" onclick="openInvoice('${inv.id}')">
+            <span class="inv-no">${inv.id}</span>
+            <span class="inv-customer">${inv.customerName || '—'}</span>
+            <span class="inv-total">${formatCurrency(inv.grandTotal || 0)}</span>
+            <span class="inv-actions">${actions}</span>
+          </div>`;
+      }).join('');
+    }
+    container.innerHTML = html;
+  }
+}
+
+function openInvoice(id) {
+  navigate('new', id);
+}
+
+async function reprintInvoice(id) {
+  const invoices = await DB.getInvoices();
+  const inv = invoices.find(i => i.id === id);
+  if (!inv) return;
+  await renderPrintArea(inv);
+  setTimeout(() => window.print(), 300);
+}
+
+function cancelInvoiceAction(id) {
+  showConfirm('Cancel Invoice', `Mark invoice ${id} as Cancelled? This cannot be undone.`, async () => {
+    const invoices = await DB.getInvoices();
+    const inv = invoices.find(i => i.id === id);
+    if (inv) {
+      inv.status = 'cancelled';
+      inv.updatedAt = new Date().toISOString();
+      await DB.saveInvoices(invoices);
+      showToast('Invoice ' + id + ' cancelled.');
+      renderHistory(document.getElementById('search-invoices').value);
+    }
+  });
+}
+
+// ===== BACKUP / RESTORE =====
+async function exportBackup() {
+  const data = {
+    exportedAt: new Date().toISOString(),
+    version: '2.0',
+    invoices: await DB.getInvoices(),
+    items: await DB.getItems(),
+    settings: await DB.getSettings(),
+    counter: localStorage.getItem('li_counter') || '0'
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `LocalInvoice-backup-${todayISO()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup exported!');
+}
+
+async function importBackup(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const invCount = (data.invoices || []).length;
+      const itemCount = (data.items || []).length;
+      showConfirm('Import Backup',
+        `Import ${invCount} invoices and ${itemCount} items? Current data will be replaced.`,
+        async () => {
+          await DB.saveInvoices(data.invoices || []);
+          await DB.saveItems(data.items || []);
+          if (data.settings) {
+            await DB.saveSettings(data.settings);
+            localStorage.setItem('li_settings_cache', JSON.stringify(data.settings));
+          }
+          if (data.counter) localStorage.setItem('li_counter', data.counter);
+          showToast('Backup restored!');
+          setTimeout(() => location.reload(), 800);
+        }
+      );
+    } catch(err) {
+      showToast('Invalid backup file.');
+    }
+  };
+  reader.readAsText(file);
+  // Reset file input
+  document.getElementById('import-file').value = '';
+}
+
+// ===== SETTINGS =====
+async function loadSettings() {
+  const s = await DB.getSettings();
+  document.getElementById('set-shop-name').value = s.shopName || '';
+  document.getElementById('set-shop-address').value = s.shopAddress || '';
+  document.getElementById('set-gst-number').value = s.gstNumber || '';
+  document.getElementById('set-upi-id').value = s.upiId || '';
+  document.getElementById('set-bank-name').value = s.bankName || '';
+  document.getElementById('set-acc-number').value = s.accNumber || '';
+  document.getElementById('set-ifsc').value = s.ifsc || '';
+  document.getElementById('set-acc-holder').value = s.accHolder || '';
+  document.getElementById('set-invoice-prefix').value = s.invoicePrefix || '';
+  document.getElementById('settings-success').style.display = 'none';
+}
+
+async function saveSettings() {
+  const settings = {
+    shopName: document.getElementById('set-shop-name').value.trim(),
+    shopAddress: document.getElementById('set-shop-address').value.trim(),
+    gstNumber: document.getElementById('set-gst-number').value.trim(),
+    upiId: document.getElementById('set-upi-id').value.trim(),
+    bankName: document.getElementById('set-bank-name').value.trim(),
+    accNumber: document.getElementById('set-acc-number').value.trim(),
+    ifsc: document.getElementById('set-ifsc').value.trim(),
+    accHolder: document.getElementById('set-acc-holder').value.trim(),
+    invoicePrefix: document.getElementById('set-invoice-prefix').value.trim()
+  };
+  await DB.saveSettings(settings);
+  localStorage.setItem('li_settings_cache', JSON.stringify(settings));
+  const msg = document.getElementById('settings-success');
+  msg.style.display = 'block';
+  setTimeout(() => msg.style.display = 'none', 3000);
+  showToast('Settings saved!');
+}
+
+// ===== KEYBOARD SHORTCUTS =====
+document.addEventListener('keydown', async (e) => {
+  if (e.ctrlKey && e.key === 's') {
+    e.preventDefault();
+    if (currentPage === 'new' && !isReadOnly) saveDraft();
+  }
+  if (e.ctrlKey && e.key === 'p') {
+    e.preventDefault();
+    if (currentPage === 'new') {
+      if (currentInvoiceId) {
+        const invoices = await DB.getInvoices();
+        const inv = invoices.find(i => i.id === currentInvoiceId);
+        if (inv) {
+          await renderPrintArea(inv);
+          setTimeout(() => window.print(), 300);
+        }
+      }
+    }
+  }
+});
+
+// ===== INVENTORY LOGIC =====
+document.getElementById('search-inventory').addEventListener('input', function() {
+  renderInventory(this.value);
+});
+
+async function renderInventory(query = '') {
+  const tbody = document.getElementById('inventory-tbody');
+  let items = await DB.getItems();
+  
+  if (query) {
+    const q = query.toLowerCase().trim();
+    items = items.filter(i => i.name.toLowerCase().includes(q));
+  }
+  
+  const gstFilter = document.getElementById('filter-gst').value;
+  if (gstFilter !== '') {
+    items = items.filter(i => i.gstPercent === parseInt(gstFilter));
+  }
+  
+  items.sort((a,b) => a.name.localeCompare(b.name));
+  
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--gray-400);">No items found.</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = items.map((item, idx) => `
+    <tr class="inv-row">
+      <td style="text-align:center">${idx + 1}</td>
+      <td style="font-weight:600">${item.name}</td>
+      <td>${item.hsn || '—'}</td>
+      <td>${item.gstPercent}%</td>
+      <td>${item.unit || '—'}</td>
+      <td style="text-align:right">
+        <button class="btn btn-sm btn-outline" style="padding:4px 8px; font-size:0.75rem;" onclick="openItemModal('${encodeURIComponent(item.name)}')">Edit</button>
+        <button class="btn btn-sm btn-outline" style="padding:4px 8px; font-size:0.75rem; color:var(--red); border-color:var(--red);" onclick="deleteItem('${encodeURIComponent(item.name)}')">Del</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function openItemModal(encodedName = null) {
+  const modal = document.getElementById('item-modal');
+  const title = document.getElementById('item-modal-title');
+  const inpName = document.getElementById('edit-item-name');
+  const inpHsn = document.getElementById('edit-item-hsn');
+  const inpGst = document.getElementById('edit-item-gst');
+  const inpUnit = document.getElementById('edit-item-unit');
+  const inpOrig = document.getElementById('edit-item-original-name');
+  
+  if (encodedName) {
+    const name = decodeURIComponent(encodedName);
+    const items = await DB.getItems();
+    const item = items.find(i => i.name === name);
+    if(item) {
+      title.textContent = 'Edit Item';
+      inpName.value = item.name;
+      inpHsn.value = item.hsn || '';
+      inpGst.value = item.gstPercent || 0;
+      inpUnit.value = item.unit || 'pcs';
+      inpOrig.value = item.name;
+    }
+  } else {
+    title.textContent = 'Add New Item';
+    inpName.value = '';
+    inpHsn.value = '';
+    inpGst.value = '0';
+    inpUnit.value = 'pcs';
+    inpOrig.value = '';
+  }
+  
+  modal.classList.add('show');
+}
+
+function closeItemModal() {
+  document.getElementById('item-modal').classList.remove('show');
+}
+
+async function saveItemFromModal() {
+  const name = document.getElementById('edit-item-name').value.trim();
+  const hsn = document.getElementById('edit-item-hsn').value.trim();
+  const gst = parseInt(document.getElementById('edit-item-gst').value) || 0;
+  const unit = document.getElementById('edit-item-unit').value.trim();
+  const origName = document.getElementById('edit-item-original-name').value;
+  
+  if(!name) {
+    showToast('Item name is required!');
+    return;
+  }
+  
+  let items = await DB.getItems();
+  
+  if (origName) {
+    const idx = items.findIndex(i => i.name === origName);
+    if(idx > -1) {
+      if(name.toLowerCase() !== origName.toLowerCase() && items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
+        showToast('Another item with this name already exists!');
+        return;
+      }
+      items[idx] = { name: titleCase(name), hsn, gstPercent: gst, unit };
+    }
+  } else {
+    if(items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
+      showToast('Item already exists!');
+      return;
+    }
+    items.push({ name: titleCase(name), hsn, gstPercent: gst, unit });
+  }
+  
+  await DB.saveItems(items);
+  closeItemModal();
+  showToast('Item saved successfully!');
+  renderInventory(document.getElementById('search-inventory').value);
+}
+
+async function deleteItem(encodedName) {
+  const name = decodeURIComponent(encodedName);
+  showConfirm('Delete Item', `Are you sure you want to delete "${name}"?`, async () => {
+    let items = await DB.getItems();
+    items = items.filter(i => i.name !== name);
+    await DB.saveItems(items);
+    showToast('Item deleted!');
+    renderInventory(document.getElementById('search-inventory').value);
+  });
+}
+
+// ===== SEARCH HANDLER =====
+document.getElementById('search-invoices').addEventListener('input', function() {
+  renderHistory(this.value);
+});
+
+// ===== CLICK OUTSIDE AUTOCOMPLETE =====
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.autocomplete-wrap')) {
+    hideAllAutocomplete();
+  }
+});
+
+// ===== PRINT TITLE RESTORE =====
+window.addEventListener('afterprint', () => {
+  document.title = 'LocalInvoice — GST Billing App';
+});
+
+// ===== INIT =====
+initApp();
+</script>
+</body>
+</html>
