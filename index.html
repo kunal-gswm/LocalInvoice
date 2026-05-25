@@ -1659,13 +1659,10 @@ async function initApp() {
   await DB.init();
 
   let items = await DB.getItems();
-  if (items.length === 0 || !localStorage.getItem('li_seed_250_loaded_v2')) {
-    const existingNames = new Set(items.map(i => i.name));
-    const toAdd = SEED_ITEMS.filter(i => !existingNames.has(i.name));
-    if (toAdd.length > 0) {
-      await DB.saveItems([...items, ...toAdd]);
-    }
-    localStorage.setItem('li_seed_250_loaded_v2', 'true');
+  if (items.length === 0 || !localStorage.getItem('li_seed_250_overwrite')) {
+    // Force overwrite to clear out the old duplicate/detailed items
+    await DB.saveItems(SEED_ITEMS);
+    localStorage.setItem('li_seed_250_overwrite', 'true');
   }
   const s = await DB.getSettings();
   li_settings_cache = s;
