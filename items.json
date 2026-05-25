@@ -1,90 +1,998 @@
 [
-  { "name": "Slate Pencil", "gstPercent": 0 },
-  { "name": "Chalk Stick", "gstPercent": 0 },
-  { "name": "Slate", "gstPercent": 0 },
-  { "name": "Eraser", "gstPercent": 0 },
-  { "name": "Pencil", "gstPercent": 0 },
-  { "name": "Sharpener", "gstPercent": 0 },
-  { "name": "Notebook", "gstPercent": 0 },
-  { "name": "Exercise Book", "gstPercent": 0 },
-  { "name": "Geometry Box", "gstPercent": 0 },
-  { "name": "Crayon", "gstPercent": 5 },
-  { "name": "Colour Pencil", "gstPercent": 5 },
-  { "name": "Drawing Book", "gstPercent": 5 },
-  { "name": "Fountain Pen", "gstPercent": 12 },
-  { "name": "Pen Refill", "gstPercent": 12 },
-  { "name": "Stylograph Pen", "gstPercent": 12 },
-  { "name": "Printed Diary", "gstPercent": 12 },
-  { "name": "Register", "gstPercent": 12 },
-  { "name": "Account Book", "gstPercent": 12 },
-  { "name": "Receipt Book", "gstPercent": 12 },
-  { "name": "Letter Pad", "gstPercent": 12 },
-  { "name": "Memorandum Pad", "gstPercent": 12 },
-  { "name": "Binder", "gstPercent": 12 },
-  { "name": "File Cover", "gstPercent": 12 },
-  { "name": "Folder", "gstPercent": 12 },
-  { "name": "Envelope", "gstPercent": 12 },
-  { "name": "Carbon Paper", "gstPercent": 12 },
-  { "name": "Blotting Pad", "gstPercent": 12 },
-  { "name": "Interleaved Carbon Set", "gstPercent": 12 },
-  { "name": "Album For Samples", "gstPercent": 12 },
-  { "name": "Book Cover", "gstPercent": 12 },
-  { "name": "Paper Label", "gstPercent": 12 },
-  { "name": "Writing Paper Pack", "gstPercent": 12 },
-  { "name": "Pencil Sharpener Metal", "gstPercent": 12 },
-  { "name": "Whiteboard", "gstPercent": 12 },
-  { "name": "Drawing Board", "gstPercent": 12 },
-  { "name": "Atlas", "gstPercent": 12 },
-  { "name": "Map", "gstPercent": 12 },
-  { "name": "Ball Pen", "gstPercent": 18 },
-  { "name": "Ballpoint Pen", "gstPercent": 18 },
-  { "name": "Gel Pen", "gstPercent": 18 },
-  { "name": "Roller Pen", "gstPercent": 18 },
-  { "name": "Marker Pen", "gstPercent": 18 },
-  { "name": "Highlighter", "gstPercent": 18 },
-  { "name": "Permanent Marker", "gstPercent": 18 },
-  { "name": "Whiteboard Marker", "gstPercent": 18 },
-  { "name": "Ink Bottle", "gstPercent": 18 },
-  { "name": "Printer Ink", "gstPercent": 18 },
-  { "name": "Ink Pad", "gstPercent": 18 },
-  { "name": "Typewriter Ribbon", "gstPercent": 18 },
-  { "name": "Stapler", "gstPercent": 18 },
-  { "name": "Staple Pin Box", "gstPercent": 18 },
-  { "name": "Paper Clip Box", "gstPercent": 18 },
-  { "name": "Binder Clip", "gstPercent": 18 },
-  { "name": "Letter Clip", "gstPercent": 18 },
-  { "name": "Punch Machine", "gstPercent": 18 },
-  { "name": "Scissors", "gstPercent": 18 },
-  { "name": "Paper Knife", "gstPercent": 18 },
-  { "name": "Pencil Box", "gstPercent": 18 },
-  { "name": "Tape Roll", "gstPercent": 18 },
-  { "name": "Glue Stick", "gstPercent": 18 },
-  { "name": "Fevicol Bottle", "gstPercent": 18 },
-  { "name": "Scale Ruler", "gstPercent": 18 },
-  { "name": "Set Square", "gstPercent": 18 },
-  { "name": "Protractor", "gstPercent": 18 },
-  { "name": "Drawing Compass", "gstPercent": 18 },
-  { "name": "Stencil", "gstPercent": 18 },
-  { "name": "Rubber Stamp", "gstPercent": 18 },
-  { "name": "Stamp Pad", "gstPercent": 18 },
-  { "name": "Calculator", "gstPercent": 18 },
-  { "name": "Printer Paper A4", "gstPercent": 18 },
-  { "name": "Carbon Copy Paper", "gstPercent": 18 },
-  { "name": "Tracing Paper", "gstPercent": 18 },
-  { "name": "Art Paper", "gstPercent": 18 },
-  { "name": "Lamination Sheet", "gstPercent": 18 },
-  { "name": "Laminated Folder", "gstPercent": 18 },
-  { "name": "Premium Notebook", "gstPercent": 18 },
-  { "name": "Planner", "gstPercent": 18 },
-  { "name": "Pen Tray", "gstPercent": 18 },
-  { "name": "Paper Tray", "gstPercent": 18 },
-  { "name": "Filing Cabinet Accessory", "gstPercent": 18 },
-  { "name": "Index Tag", "gstPercent": 18 },
-  { "name": "Sticky Notes", "gstPercent": 18 },
-  { "name": "Correction Fluid", "gstPercent": 18 },
-  { "name": "Correction Tape", "gstPercent": 18 },
-  { "name": "Rubber Band Box", "gstPercent": 18 },
-  { "name": "Drawing Pin Box", "gstPercent": 18 },
-  { "name": "Monopod", "gstPercent": 18 },
-  { "name": "Ink Cartridge", "gstPercent": 18 }
+  {
+    "name": "Slate Pencil",
+    "gstPercent": 0
+  },
+  {
+    "name": "White Chalk",
+    "gstPercent": 0
+  },
+  {
+    "name": "Colour Chalk",
+    "gstPercent": 0
+  },
+  {
+    "name": "Slate",
+    "gstPercent": 0
+  },
+  {
+    "name": "Eraser Small",
+    "gstPercent": 0
+  },
+  {
+    "name": "Eraser Large",
+    "gstPercent": 0
+  },
+  {
+    "name": "Pencil HB",
+    "gstPercent": 0
+  },
+  {
+    "name": "Pencil 2B",
+    "gstPercent": 0
+  },
+  {
+    "name": "Pencil 4B",
+    "gstPercent": 0
+  },
+  {
+    "name": "Sharpener Single Hole",
+    "gstPercent": 0
+  },
+  {
+    "name": "Sharpener Double Hole",
+    "gstPercent": 0
+  },
+  {
+    "name": "Notebook Small",
+    "gstPercent": 0
+  },
+  {
+    "name": "Notebook Medium",
+    "gstPercent": 0
+  },
+  {
+    "name": "Notebook Large",
+    "gstPercent": 0
+  },
+  {
+    "name": "Exercise Book 100 Pages",
+    "gstPercent": 0
+  },
+  {
+    "name": "Exercise Book 200 Pages",
+    "gstPercent": 0
+  },
+  {
+    "name": "Geometry Box",
+    "gstPercent": 0
+  },
+  {
+    "name": "Crayon Box 12 Colour",
+    "gstPercent": 5
+  },
+  {
+    "name": "Crayon Box 24 Colour",
+    "gstPercent": 5
+  },
+  {
+    "name": "Colour Pencil Set 12",
+    "gstPercent": 5
+  },
+  {
+    "name": "Colour Pencil Set 24",
+    "gstPercent": 5
+  },
+  {
+    "name": "Drawing Book A3",
+    "gstPercent": 5
+  },
+  {
+    "name": "Drawing Book A4",
+    "gstPercent": 5
+  },
+  {
+    "name": "Fountain Pen Blue",
+    "gstPercent": 12
+  },
+  {
+    "name": "Fountain Pen Black",
+    "gstPercent": 12
+  },
+  {
+    "name": "Pen Refill Blue",
+    "gstPercent": 12
+  },
+  {
+    "name": "Pen Refill Black",
+    "gstPercent": 12
+  },
+  {
+    "name": "Pen Refill Red",
+    "gstPercent": 12
+  },
+  {
+    "name": "Diary A4",
+    "gstPercent": 12
+  },
+  {
+    "name": "Diary A5",
+    "gstPercent": 12
+  },
+  {
+    "name": "Register 100 Pages",
+    "gstPercent": 12
+  },
+  {
+    "name": "Register 200 Pages",
+    "gstPercent": 12
+  },
+  {
+    "name": "Register 300 Pages",
+    "gstPercent": 12
+  },
+  {
+    "name": "Register 500 Pages",
+    "gstPercent": 12
+  },
+  {
+    "name": "Account Book Small",
+    "gstPercent": 12
+  },
+  {
+    "name": "Account Book Medium",
+    "gstPercent": 12
+  },
+  {
+    "name": "Account Book Large",
+    "gstPercent": 12
+  },
+  {
+    "name": "Receipt Book Duplicate",
+    "gstPercent": 12
+  },
+  {
+    "name": "Receipt Book Triplicate",
+    "gstPercent": 12
+  },
+  {
+    "name": "Cash Book",
+    "gstPercent": 12
+  },
+  {
+    "name": "Ledger Book",
+    "gstPercent": 12
+  },
+  {
+    "name": "Attendance Register",
+    "gstPercent": 12
+  },
+  {
+    "name": "Stock Register",
+    "gstPercent": 12
+  },
+  {
+    "name": "Movement Register",
+    "gstPercent": 12
+  },
+  {
+    "name": "Dispatch Register",
+    "gstPercent": 12
+  },
+  {
+    "name": "Inward Register",
+    "gstPercent": 12
+  },
+  {
+    "name": "Outward Register",
+    "gstPercent": 12
+  },
+  {
+    "name": "Guard File",
+    "gstPercent": 12
+  },
+  {
+    "name": "Flat File",
+    "gstPercent": 12
+  },
+  {
+    "name": "Spring File",
+    "gstPercent": 12
+  },
+  {
+    "name": "Board File",
+    "gstPercent": 12
+  },
+  {
+    "name": "Box File",
+    "gstPercent": 12
+  },
+  {
+    "name": "Accordion File",
+    "gstPercent": 12
+  },
+  {
+    "name": "Letter Pad A4",
+    "gstPercent": 12
+  },
+  {
+    "name": "Letter Pad A5",
+    "gstPercent": 12
+  },
+  {
+    "name": "Memo Pad",
+    "gstPercent": 12
+  },
+  {
+    "name": "Noting Pad",
+    "gstPercent": 12
+  },
+  {
+    "name": "Ring Binder 2 Ring",
+    "gstPercent": 12
+  },
+  {
+    "name": "Ring Binder 4 Ring",
+    "gstPercent": 12
+  },
+  {
+    "name": "File Cover Blue",
+    "gstPercent": 12
+  },
+  {
+    "name": "File Cover Red",
+    "gstPercent": 12
+  },
+  {
+    "name": "File Cover Green",
+    "gstPercent": 12
+  },
+  {
+    "name": "File Cover Yellow",
+    "gstPercent": 12
+  },
+  {
+    "name": "L Folder A4",
+    "gstPercent": 12
+  },
+  {
+    "name": "L Folder A3",
+    "gstPercent": 12
+  },
+  {
+    "name": "Envelope Small",
+    "gstPercent": 12
+  },
+  {
+    "name": "Envelope Medium",
+    "gstPercent": 12
+  },
+  {
+    "name": "Envelope Large",
+    "gstPercent": 12
+  },
+  {
+    "name": "Window Envelope",
+    "gstPercent": 12
+  },
+  {
+    "name": "Carbon Paper Blue",
+    "gstPercent": 12
+  },
+  {
+    "name": "Carbon Paper Black",
+    "gstPercent": 12
+  },
+  {
+    "name": "Blotting Pad",
+    "gstPercent": 12
+  },
+  {
+    "name": "Book Cover Transparent",
+    "gstPercent": 12
+  },
+  {
+    "name": "Book Cover Brown",
+    "gstPercent": 12
+  },
+  {
+    "name": "Sticker Label Small",
+    "gstPercent": 12
+  },
+  {
+    "name": "Sticker Label Large",
+    "gstPercent": 12
+  },
+  {
+    "name": "Whiteboard Small",
+    "gstPercent": 12
+  },
+  {
+    "name": "Whiteboard Medium",
+    "gstPercent": 12
+  },
+  {
+    "name": "Whiteboard Large",
+    "gstPercent": 12
+  },
+  {
+    "name": "Drawing Board A2",
+    "gstPercent": 12
+  },
+  {
+    "name": "Drawing Board A1",
+    "gstPercent": 12
+  },
+  {
+    "name": "India Atlas",
+    "gstPercent": 12
+  },
+  {
+    "name": "World Atlas",
+    "gstPercent": 12
+  },
+  {
+    "name": "India Wall Map",
+    "gstPercent": 12
+  },
+  {
+    "name": "State Wall Map",
+    "gstPercent": 12
+  },
+  {
+    "name": "District Wall Map",
+    "gstPercent": 12
+  },
+  {
+    "name": "Ball Pen Blue",
+    "gstPercent": 18
+  },
+  {
+    "name": "Ball Pen Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Ball Pen Red",
+    "gstPercent": 18
+  },
+  {
+    "name": "Gel Pen Blue",
+    "gstPercent": 18
+  },
+  {
+    "name": "Gel Pen Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Gel Pen Red",
+    "gstPercent": 18
+  },
+  {
+    "name": "Gel Pen Green",
+    "gstPercent": 18
+  },
+  {
+    "name": "Roller Pen Blue",
+    "gstPercent": 18
+  },
+  {
+    "name": "Roller Pen Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Marker Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Marker Blue",
+    "gstPercent": 18
+  },
+  {
+    "name": "Marker Red",
+    "gstPercent": 18
+  },
+  {
+    "name": "Highlighter Yellow",
+    "gstPercent": 18
+  },
+  {
+    "name": "Highlighter Green",
+    "gstPercent": 18
+  },
+  {
+    "name": "Highlighter Orange",
+    "gstPercent": 18
+  },
+  {
+    "name": "Highlighter Blue",
+    "gstPercent": 18
+  },
+  {
+    "name": "Highlighter Pink",
+    "gstPercent": 18
+  },
+  {
+    "name": "Permanent Marker Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Permanent Marker Blue",
+    "gstPercent": 18
+  },
+  {
+    "name": "Whiteboard Marker Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Whiteboard Marker Blue",
+    "gstPercent": 18
+  },
+  {
+    "name": "Whiteboard Marker Red",
+    "gstPercent": 18
+  },
+  {
+    "name": "Whiteboard Marker Green",
+    "gstPercent": 18
+  },
+  {
+    "name": "Ink Bottle Blue",
+    "gstPercent": 18
+  },
+  {
+    "name": "Ink Bottle Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Ink Bottle Red",
+    "gstPercent": 18
+  },
+  {
+    "name": "Printer Ink Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Printer Ink Colour",
+    "gstPercent": 18
+  },
+  {
+    "name": "Stamp Pad Blue",
+    "gstPercent": 18
+  },
+  {
+    "name": "Stamp Pad Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Stamp Pad Red",
+    "gstPercent": 18
+  },
+  {
+    "name": "Stamp Pad Violet",
+    "gstPercent": 18
+  },
+  {
+    "name": "Stamp Ink Blue",
+    "gstPercent": 18
+  },
+  {
+    "name": "Stamp Ink Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Stamp Ink Red",
+    "gstPercent": 18
+  },
+  {
+    "name": "Stapler Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Stapler Medium",
+    "gstPercent": 18
+  },
+  {
+    "name": "Stapler Heavy Duty",
+    "gstPercent": 18
+  },
+  {
+    "name": "Staple Pin Box Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Staple Pin Box Medium",
+    "gstPercent": 18
+  },
+  {
+    "name": "Staple Pin Box Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Paper Clip Box Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Paper Clip Box Medium",
+    "gstPercent": 18
+  },
+  {
+    "name": "Paper Clip Box Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Binder Clip Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Binder Clip Medium",
+    "gstPercent": 18
+  },
+  {
+    "name": "Binder Clip Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Punching Machine 2 Hole",
+    "gstPercent": 18
+  },
+  {
+    "name": "Punching Machine 4 Hole",
+    "gstPercent": 18
+  },
+  {
+    "name": "Scissors Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Scissors Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Cutter Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Cutter Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Cutter Blade Pack",
+    "gstPercent": 18
+  },
+  {
+    "name": "Pencil Box Plastic",
+    "gstPercent": 18
+  },
+  {
+    "name": "Pencil Box Metal",
+    "gstPercent": 18
+  },
+  {
+    "name": "Tape Small (12mm)",
+    "gstPercent": 18
+  },
+  {
+    "name": "Tape Medium (18mm)",
+    "gstPercent": 18
+  },
+  {
+    "name": "Tape Large (24mm)",
+    "gstPercent": 18
+  },
+  {
+    "name": "Brown Tape Small (48mm)",
+    "gstPercent": 18
+  },
+  {
+    "name": "Brown Tape Large (72mm)",
+    "gstPercent": 18
+  },
+  {
+    "name": "Double Side Tape Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Double Side Tape Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Masking Tape Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Masking Tape Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Tape Cutter Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Tape Cutter Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Glue Stick Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Glue Stick Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Fevicol Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Fevicol Medium",
+    "gstPercent": 18
+  },
+  {
+    "name": "Fevicol Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Scale 15cm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Scale 30cm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Scale 45cm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Scale 60cm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Set Square 45 Degree",
+    "gstPercent": 18
+  },
+  {
+    "name": "Set Square 60 Degree",
+    "gstPercent": 18
+  },
+  {
+    "name": "Protractor Half Circle",
+    "gstPercent": 18
+  },
+  {
+    "name": "Protractor Full Circle",
+    "gstPercent": 18
+  },
+  {
+    "name": "Compass Metal",
+    "gstPercent": 18
+  },
+  {
+    "name": "Compass Plastic",
+    "gstPercent": 18
+  },
+  {
+    "name": "Letter Stencil",
+    "gstPercent": 18
+  },
+  {
+    "name": "Number Stencil",
+    "gstPercent": 18
+  },
+  {
+    "name": "Rubber Stamp",
+    "gstPercent": 18
+  },
+  {
+    "name": "Date Stamp",
+    "gstPercent": 18
+  },
+  {
+    "name": "Received Stamp",
+    "gstPercent": 18
+  },
+  {
+    "name": "Calculator 8 Digit",
+    "gstPercent": 18
+  },
+  {
+    "name": "Calculator 12 Digit",
+    "gstPercent": 18
+  },
+  {
+    "name": "Scientific Calculator",
+    "gstPercent": 18
+  },
+  {
+    "name": "A4 Paper Ream",
+    "gstPercent": 18
+  },
+  {
+    "name": "A4 Paper Box (10 Reams)",
+    "gstPercent": 18
+  },
+  {
+    "name": "A3 Paper Ream",
+    "gstPercent": 18
+  },
+  {
+    "name": "Legal Size Paper Ream",
+    "gstPercent": 18
+  },
+  {
+    "name": "Foolscap Paper Ream",
+    "gstPercent": 18
+  },
+  {
+    "name": "Tracing Paper A4",
+    "gstPercent": 18
+  },
+  {
+    "name": "Tracing Paper A3",
+    "gstPercent": 18
+  },
+  {
+    "name": "Art Paper A4",
+    "gstPercent": 18
+  },
+  {
+    "name": "Art Paper A3",
+    "gstPercent": 18
+  },
+  {
+    "name": "Lamination Sheet A4",
+    "gstPercent": 18
+  },
+  {
+    "name": "Lamination Sheet A3",
+    "gstPercent": 18
+  },
+  {
+    "name": "Hardbound Notebook A4",
+    "gstPercent": 18
+  },
+  {
+    "name": "Hardbound Notebook A5",
+    "gstPercent": 18
+  },
+  {
+    "name": "Yearly Planner",
+    "gstPercent": 18
+  },
+  {
+    "name": "Monthly Planner",
+    "gstPercent": 18
+  },
+  {
+    "name": "Pen Stand Single",
+    "gstPercent": 18
+  },
+  {
+    "name": "Pen Stand Combo",
+    "gstPercent": 18
+  },
+  {
+    "name": "Paper Tray Single",
+    "gstPercent": 18
+  },
+  {
+    "name": "Paper Tray Double",
+    "gstPercent": 18
+  },
+  {
+    "name": "Index Tag",
+    "gstPercent": 18
+  },
+  {
+    "name": "Index Divider 5 Part",
+    "gstPercent": 18
+  },
+  {
+    "name": "Index Divider 10 Part",
+    "gstPercent": 18
+  },
+  {
+    "name": "Sticky Notes Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Sticky Notes Medium",
+    "gstPercent": 18
+  },
+  {
+    "name": "Sticky Notes Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Whitener",
+    "gstPercent": 18
+  },
+  {
+    "name": "Correction Tape Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Correction Tape Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Rubber Band Box Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Rubber Band Box Medium",
+    "gstPercent": 18
+  },
+  {
+    "name": "Rubber Band Box Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Drawing Pin Box Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Drawing Pin Box Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Push Pin Box",
+    "gstPercent": 18
+  },
+  {
+    "name": "Ink Cartridge Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Ink Cartridge Colour",
+    "gstPercent": 18
+  },
+  {
+    "name": "Toner Black",
+    "gstPercent": 18
+  },
+  {
+    "name": "Toner Colour",
+    "gstPercent": 18
+  },
+  {
+    "name": "OHP Sheet A4",
+    "gstPercent": 18
+  },
+  {
+    "name": "Binding Comb 10mm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Binding Comb 14mm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Binding Comb 19mm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Binding Comb 25mm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Binding Comb 32mm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Bill Roll 57mm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Bill Roll 80mm",
+    "gstPercent": 18
+  },
+  {
+    "name": "Mouse Pad",
+    "gstPercent": 18
+  },
+  {
+    "name": "Pen Drive 16GB",
+    "gstPercent": 18
+  },
+  {
+    "name": "Pen Drive 32GB",
+    "gstPercent": 18
+  },
+  {
+    "name": "Pen Drive 64GB",
+    "gstPercent": 18
+  },
+  {
+    "name": "CD Pack (50 Pcs)",
+    "gstPercent": 18
+  },
+  {
+    "name": "DVD Pack (50 Pcs)",
+    "gstPercent": 18
+  },
+  {
+    "name": "Desk Calendar Stand",
+    "gstPercent": 18
+  },
+  {
+    "name": "Wall Calendar",
+    "gstPercent": 18
+  },
+  {
+    "name": "Lock Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Lock Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Dori Roll (Thread)",
+    "gstPercent": 18
+  },
+  {
+    "name": "Name Plate Acrylic",
+    "gstPercent": 18
+  },
+  {
+    "name": "Name Plate Metal",
+    "gstPercent": 18
+  },
+  {
+    "name": "Notice Board Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Notice Board Medium",
+    "gstPercent": 18
+  },
+  {
+    "name": "Notice Board Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Board Duster",
+    "gstPercent": 18
+  },
+  {
+    "name": "Board Cleaner Spray",
+    "gstPercent": 18
+  },
+  {
+    "name": "Wax Seal Stick",
+    "gstPercent": 18
+  },
+  {
+    "name": "Numbering Machine",
+    "gstPercent": 18
+  },
+  {
+    "name": "Cash Box Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Cash Box Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Document Bag Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Document Bag Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Gum Bottle Small",
+    "gstPercent": 18
+  },
+  {
+    "name": "Gum Bottle Large",
+    "gstPercent": 18
+  },
+  {
+    "name": "Typewriter Ribbon",
+    "gstPercent": 18
+  }
 ]
