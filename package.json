@@ -6,7 +6,8 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder",
-    "pack": "electron-builder --dir"
+    "pack": "electron-builder --dir",
+    "build:mobile": "node build-mobile.js"
   },
   "repository": {
     "type": "git",
@@ -15,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "astral-regex": "^2.0.0",
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3"
   },
@@ -50,5 +52,11 @@
       "createStartMenuShortcut": true,
       "shortcutName": "LocalInvoice"
     }
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4"
   }
 }

@@ -11,3 +11,6 @@ node_modules/
 *.local
 *.bak
 *.tmp
+
+# Mobile build folder
+www/

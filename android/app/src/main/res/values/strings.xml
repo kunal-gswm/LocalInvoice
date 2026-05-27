@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LocalInvoice</string>
+    <string name="title_activity_main">LocalInvoice</string>
+    <string name="package_name">com.localinvoice.app</string>
+    <string name="custom_url_scheme">com.localinvoice.app</string>
+</resources>
