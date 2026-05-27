@@ -14,3 +14,7 @@ node_modules/
 
 # Mobile build folder
 www/
+
+# Android signing keystores
+*.keystore
+*.jks
