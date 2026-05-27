@@ -7,11 +7,11 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>LocalInvoice — GST Billing App</title>
-<link rel="icon" type="image/png" href="logo.png">
+<link rel="icon" type="image/png" href="assets/logo.png">
 <meta name="description" content="Offline GST-compliant billing application for local stationery shops in India. Create invoices, track history, export PDFs.">
-<script src="qrcode.min.js"></script>
-<script src="html2canvas.min.js"></script>
-<script src="jspdf.umd.min.js"></script>
+<script src="lib/qrcode.min.js"></script>
+<script src="lib/html2canvas.min.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
 <style>
 /* System font stack — no internet needed */
 /* ===== RESET & BASE ===== */
@@ -1105,6 +1105,7 @@ nav button.active {
     <button class="btn btn-ghost btn-lg" onclick="saveDraft()" id="btn-save-draft">Save Draft</button>
     <button class="btn btn-primary btn-lg" onclick="finaliseInvoice()" id="btn-finalise">Finalise & Print</button>
     <button class="btn btn-outline btn-lg" onclick="downloadPDF()" id="btn-pdf">Download PDF</button>
+    <button class="btn btn-outline btn-lg hidden" onclick="cancelInvoiceAction(currentInvoiceId)" id="btn-cancel-invoice">Cancel Invoice</button>
     <button class="btn btn-ghost" onclick="resetNewInvoice()" id="btn-new-fresh">New Invoice</button>
     <button class="auto-style-4 btn btn-primary" id="btn-new-from-view" onclick="navigate('new')">Create New Invoice</button>
   </div>
@@ -1138,6 +1139,7 @@ nav button.active {
             <th class="auto-style-13">HSN</th>
             <th class="auto-style-14">GST%</th>
             <th class="auto-style-13">Unit</th>
+            <th class="auto-style-13">Stock</th>
             <th class="auto-style-15">Actions</th>
           </tr>
         </thead>
@@ -1178,6 +1180,18 @@ nav button.active {
       <div class="form-group">
         <label>GST Number</label>
         <input type="text" id="set-gst-number" placeholder="e.g. 29ABCDE1234F1Z5">
+      </div>
+      <div class="form-group">
+        <label>Shop Phone</label>
+        <input type="text" id="set-shop-phone" placeholder="e.g. +91 98765 43210">
+      </div>
+      <div class="form-group">
+        <label>Shop Email</label>
+        <input type="text" id="set-shop-email" placeholder="e.g. info@shop.com">
+      </div>
+      <div class="form-group">
+        <label>Shop Website</label>
+        <input type="text" id="set-shop-website" placeholder="e.g. www.shop.com">
       </div>
       <div class="form-group">
         <label>UPI ID</label>
@@ -1243,6 +1257,10 @@ nav button.active {
         <label>Unit</label>
         <input class="auto-style-20" type="text" id="edit-item-unit" placeholder="e.g. pcs, box">
       </div>
+      <div class="form-group">
+        <label>Stock Quantity</label>
+        <input class="auto-style-20" type="number" id="edit-item-stock" placeholder="e.g. 100" min="0">
+      </div>
     </div>
     <div class="auto-style-22 btn-group">
       <button class="btn btn-ghost" onclick="closeItemModal()">Cancel</button>
@@ -1295,256 +1313,275 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // ===== SEED DATA =====
 const SEED_ITEMS = [
-  { "name": "Slate Pencil", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "White Chalk", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Colour Chalk", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Slate", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Eraser Small", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Eraser Large", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Pencil HB", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Pencil 2B", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Pencil 4B", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Sharpener Single Hole", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Sharpener Double Hole", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Notebook Small", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Notebook Medium", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Notebook Large", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Exercise Book 100 Pages", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Exercise Book 200 Pages", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Geometry Box", "gstPercent": 0, "hsn": "", "unit": "" },
-  { "name": "Crayon Box 12 Colour", "gstPercent": 5, "hsn": "", "unit": "" },
-  { "name": "Crayon Box 24 Colour", "gstPercent": 5, "hsn": "", "unit": "" },
-  { "name": "Colour Pencil Set 12", "gstPercent": 5, "hsn": "", "unit": "" },
-  { "name": "Colour Pencil Set 24", "gstPercent": 5, "hsn": "", "unit": "" },
-  { "name": "Drawing Book A3", "gstPercent": 5, "hsn": "", "unit": "" },
-  { "name": "Drawing Book A4", "gstPercent": 5, "hsn": "", "unit": "" },
-  { "name": "Fountain Pen Blue", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Fountain Pen Black", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Pen Refill Blue", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Pen Refill Black", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Pen Refill Red", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Diary A4", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Diary A5", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Register 100 Pages", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Register 200 Pages", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Register 300 Pages", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Register 500 Pages", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Account Book Small", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Account Book Medium", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Account Book Large", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Receipt Book Duplicate", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Receipt Book Triplicate", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Cash Book", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Ledger Book", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Attendance Register", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Stock Register", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Movement Register", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Dispatch Register", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Inward Register", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Outward Register", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Guard File", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Flat File", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Spring File", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Board File", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Box File", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Accordion File", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Letter Pad A4", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Letter Pad A5", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Memo Pad", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Noting Pad", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Ring Binder 2 Ring", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Ring Binder 4 Ring", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "File Cover Blue", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "File Cover Red", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "File Cover Green", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "File Cover Yellow", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "L Folder A4", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "L Folder A3", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Envelope Small", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Envelope Medium", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Envelope Large", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Window Envelope", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Carbon Paper Blue", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Carbon Paper Black", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Blotting Pad", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Book Cover Transparent", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Book Cover Brown", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Sticker Label Small", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Sticker Label Large", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Whiteboard Small", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Whiteboard Medium", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Whiteboard Large", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Drawing Board A2", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Drawing Board A1", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "India Atlas", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "World Atlas", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "India Wall Map", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "State Wall Map", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "District Wall Map", "gstPercent": 12, "hsn": "", "unit": "" },
-  { "name": "Ball Pen Blue", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Ball Pen Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Ball Pen Red", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Gel Pen Blue", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Gel Pen Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Gel Pen Red", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Gel Pen Green", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Roller Pen Blue", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Roller Pen Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Marker Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Marker Blue", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Marker Red", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Highlighter Yellow", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Highlighter Green", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Highlighter Orange", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Highlighter Blue", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Highlighter Pink", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Permanent Marker Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Permanent Marker Blue", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Whiteboard Marker Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Whiteboard Marker Blue", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Whiteboard Marker Red", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Whiteboard Marker Green", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Ink Bottle Blue", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Ink Bottle Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Ink Bottle Red", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Printer Ink Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Printer Ink Colour", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Stamp Pad Blue", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Stamp Pad Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Stamp Pad Red", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Stamp Pad Violet", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Stamp Ink Blue", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Stamp Ink Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Stamp Ink Red", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Stapler Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Stapler Medium", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Stapler Heavy Duty", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Staple Pin Box Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Staple Pin Box Medium", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Staple Pin Box Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Paper Clip Box Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Paper Clip Box Medium", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Paper Clip Box Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Binder Clip Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Binder Clip Medium", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Binder Clip Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Punching Machine 2 Hole", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Punching Machine 4 Hole", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Scissors Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Scissors Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Cutter Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Cutter Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Cutter Blade Pack", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Pencil Box Plastic", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Pencil Box Metal", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Tape Small (12mm)", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Tape Medium (18mm)", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Tape Large (24mm)", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Brown Tape Small (48mm)", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Brown Tape Large (72mm)", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Double Side Tape Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Double Side Tape Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Masking Tape Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Masking Tape Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Tape Cutter Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Tape Cutter Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Glue Stick Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Glue Stick Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Fevicol Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Fevicol Medium", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Fevicol Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Scale 15cm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Scale 30cm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Scale 45cm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Scale 60cm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Set Square 45 Degree", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Set Square 60 Degree", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Protractor Half Circle", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Protractor Full Circle", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Compass Metal", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Compass Plastic", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Letter Stencil", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Number Stencil", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Rubber Stamp", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Date Stamp", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Received Stamp", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Calculator 8 Digit", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Calculator 12 Digit", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Scientific Calculator", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "A4 Paper Ream", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "A4 Paper Box (10 Reams)", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "A3 Paper Ream", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Legal Size Paper Ream", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Foolscap Paper Ream", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Tracing Paper A4", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Tracing Paper A3", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Art Paper A4", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Art Paper A3", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Lamination Sheet A4", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Lamination Sheet A3", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Hardbound Notebook A4", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Hardbound Notebook A5", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Yearly Planner", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Monthly Planner", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Pen Stand Single", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Pen Stand Combo", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Paper Tray Single", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Paper Tray Double", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Index Tag", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Index Divider 5 Part", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Index Divider 10 Part", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Sticky Notes Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Sticky Notes Medium", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Sticky Notes Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Whitener", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Correction Tape Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Correction Tape Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Rubber Band Box Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Rubber Band Box Medium", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Rubber Band Box Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Drawing Pin Box Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Drawing Pin Box Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Push Pin Box", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Ink Cartridge Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Ink Cartridge Colour", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Toner Black", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Toner Colour", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "OHP Sheet A4", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Binding Comb 10mm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Binding Comb 14mm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Binding Comb 19mm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Binding Comb 25mm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Binding Comb 32mm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Bill Roll 57mm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Bill Roll 80mm", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Mouse Pad", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Pen Drive 16GB", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Pen Drive 32GB", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Pen Drive 64GB", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "CD Pack (50 Pcs)", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "DVD Pack (50 Pcs)", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Desk Calendar Stand", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Wall Calendar", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Lock Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Lock Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Dori Roll (Thread)", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Name Plate Acrylic", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Name Plate Metal", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Notice Board Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Notice Board Medium", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Notice Board Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Board Duster", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Board Cleaner Spray", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Wax Seal Stick", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Numbering Machine", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Cash Box Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Cash Box Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Document Bag Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Document Bag Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Gum Bottle Small", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Gum Bottle Large", "gstPercent": 18, "hsn": "", "unit": "" },
-  { "name": "Typewriter Ribbon", "gstPercent": 18, "hsn": "", "unit": "" },
+  { "name": "Slate Pencil", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "White Chalk", "gstPercent": 0, "hsn": "9609", "unit": "box" },
+  { "name": "Colour Chalk", "gstPercent": 0, "hsn": "9609", "unit": "box" },
+  { "name": "Slate", "gstPercent": 0, "hsn": "9610", "unit": "pcs" },
+  { "name": "Eraser Small", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Eraser Large", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Pencil HB", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Pencil 2B", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Pencil 4B", "gstPercent": 0, "hsn": "9609", "unit": "pcs" },
+  { "name": "Sharpener Single Hole", "gstPercent": 0, "hsn": "8214", "unit": "pcs" },
+  { "name": "Sharpener Double Hole", "gstPercent": 0, "hsn": "8214", "unit": "pcs" },
+  { "name": "Notebook Small", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Notebook Medium", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Notebook Large", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Exercise Book 100 Pages", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Exercise Book 200 Pages", "gstPercent": 0, "hsn": "4820", "unit": "pcs" },
+  { "name": "Geometry Box", "gstPercent": 0, "hsn": "9017", "unit": "pcs" },
+  { "name": "Crayon Box 12 Colour", "gstPercent": 5, "hsn": "9609", "unit": "pcs" },
+  { "name": "Crayon Box 24 Colour", "gstPercent": 5, "hsn": "9609", "unit": "pcs" },
+  { "name": "Colour Pencil Set 12", "gstPercent": 5, "hsn": "9609", "unit": "set" },
+  { "name": "Colour Pencil Set 24", "gstPercent": 5, "hsn": "9609", "unit": "set" },
+  { "name": "Drawing Book A3", "gstPercent": 5, "hsn": "4903", "unit": "pcs" },
+  { "name": "Drawing Book A4", "gstPercent": 5, "hsn": "4903", "unit": "pcs" },
+  { "name": "Oil Pastel Set 12", "gstPercent": 5, "hsn": "9609", "unit": "set" },
+  { "name": "Oil Pastel Set 24", "gstPercent": 5, "hsn": "9609", "unit": "set" },
+  { "name": "Fountain Pen Blue", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Fountain Pen Black", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Pen Refill Blue", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Pen Refill Black", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Pen Refill Red", "gstPercent": 12, "hsn": "9608", "unit": "pcs" },
+  { "name": "Diary A4", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Diary A5", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Register 100 Pages", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Register 200 Pages", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Register 300 Pages", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Register 500 Pages", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Account Book Small", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Account Book Medium", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Account Book Large", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Receipt Book Duplicate", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Receipt Book Triplicate", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Cash Book", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Ledger Book", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Attendance Register", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Stock Register", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Movement Register", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Dispatch Register", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Inward Register", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Outward Register", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Visitor Book", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Guard File", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Flat File", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Spring File", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Board File", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Box File", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Accordion File", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Letter Pad A4", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Letter Pad A5", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Memo Pad", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Noting Pad", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Ring Binder 2 Ring", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Ring Binder 4 Ring", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "File Cover Blue", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "File Cover Red", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "File Cover Green", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "File Cover Yellow", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "L Folder A4", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "L Folder A3", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Envelope Small", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Envelope Medium", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Envelope Large", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Window Envelope", "gstPercent": 12, "hsn": "4817", "unit": "pcs" },
+  { "name": "Carbon Paper Blue", "gstPercent": 12, "hsn": "4816", "unit": "pcs" },
+  { "name": "Carbon Paper Black", "gstPercent": 12, "hsn": "4816", "unit": "pcs" },
+  { "name": "Blotting Pad", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Book Cover Transparent", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Book Cover Brown", "gstPercent": 12, "hsn": "4820", "unit": "pcs" },
+  { "name": "Sticker Label Small", "gstPercent": 12, "hsn": "4821", "unit": "pkt" },
+  { "name": "Sticker Label Large", "gstPercent": 12, "hsn": "4821", "unit": "pkt" },
+  { "name": "Whiteboard Small", "gstPercent": 12, "hsn": "9610", "unit": "pcs" },
+  { "name": "Whiteboard Medium", "gstPercent": 12, "hsn": "9610", "unit": "pcs" },
+  { "name": "Whiteboard Large", "gstPercent": 12, "hsn": "9610", "unit": "pcs" },
+  { "name": "Drawing Board A2", "gstPercent": 12, "hsn": "9610", "unit": "pcs" },
+  { "name": "Drawing Board A1", "gstPercent": 12, "hsn": "9610", "unit": "pcs" },
+  { "name": "India Atlas", "gstPercent": 12, "hsn": "4905", "unit": "pcs" },
+  { "name": "World Atlas", "gstPercent": 12, "hsn": "4905", "unit": "pcs" },
+  { "name": "India Wall Map", "gstPercent": 12, "hsn": "4905", "unit": "pcs" },
+  { "name": "State Wall Map", "gstPercent": 12, "hsn": "4905", "unit": "pcs" },
+  { "name": "District Wall Map", "gstPercent": 12, "hsn": "4905", "unit": "pcs" },
+  { "name": "Ball Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ball Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Ball Pen Red", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Gel Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Gel Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Gel Pen Red", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Gel Pen Green", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Roller Pen Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Roller Pen Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Marker Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Marker Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Marker Red", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Yellow", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Green", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Orange", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Highlighter Pink", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Permanent Marker Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Permanent Marker Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Whiteboard Marker Black", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Whiteboard Marker Blue", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Whiteboard Marker Red", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Whiteboard Marker Green", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Sketch Pen Set 12", "gstPercent": 18, "hsn": "9608", "unit": "set" },
+  { "name": "Sketch Pen Set 24", "gstPercent": 18, "hsn": "9608", "unit": "set" },
+  { "name": "Ink Bottle Blue", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Ink Bottle Black", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Ink Bottle Red", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Printer Ink Black", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Printer Ink Colour", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Stamp Pad Blue", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
+  { "name": "Stamp Pad Black", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
+  { "name": "Stamp Pad Red", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
+  { "name": "Stamp Pad Violet", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
+  { "name": "Stamp Ink Blue", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Stamp Ink Black", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Stamp Ink Red", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Stapler Small", "gstPercent": 18, "hsn": "8205", "unit": "pcs" },
+  { "name": "Stapler Medium", "gstPercent": 18, "hsn": "8205", "unit": "pcs" },
+  { "name": "Stapler Heavy Duty", "gstPercent": 18, "hsn": "8205", "unit": "pcs" },
+  { "name": "Staple Pin Box Small", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Staple Pin Box Medium", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Staple Pin Box Large", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Paper Clip Box Small", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Paper Clip Box Medium", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Paper Clip Box Large", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Binder Clip Small", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Binder Clip Medium", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Binder Clip Large", "gstPercent": 18, "hsn": "8305", "unit": "box" },
+  { "name": "Punching Machine 2 Hole", "gstPercent": 18, "hsn": "8441", "unit": "pcs" },
+  { "name": "Punching Machine 4 Hole", "gstPercent": 18, "hsn": "8441", "unit": "pcs" },
+  { "name": "Scissors Small", "gstPercent": 18, "hsn": "8213", "unit": "pcs" },
+  { "name": "Scissors Large", "gstPercent": 18, "hsn": "8213", "unit": "pcs" },
+  { "name": "Cutter Small", "gstPercent": 18, "hsn": "8213", "unit": "pcs" },
+  { "name": "Cutter Large", "gstPercent": 18, "hsn": "8213", "unit": "pcs" },
+  { "name": "Cutter Blade Pack", "gstPercent": 18, "hsn": "8211", "unit": "pkt" },
+  { "name": "Pencil Box Plastic", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Pencil Box Metal", "gstPercent": 18, "hsn": "7326", "unit": "pcs" },
+  { "name": "Tape Small (12mm)", "gstPercent": 18, "hsn": "3919", "unit": "pcs" },
+  { "name": "Tape Medium (18mm)", "gstPercent": 18, "hsn": "3919", "unit": "pcs" },
+  { "name": "Tape Large (24mm)", "gstPercent": 18, "hsn": "3919", "unit": "pcs" },
+  { "name": "Brown Tape Small (48mm)", "gstPercent": 18, "hsn": "3919", "unit": "pcs" },
+  { "name": "Brown Tape Large (72mm)", "gstPercent": 18, "hsn": "3919", "unit": "pcs" },
+  { "name": "Double Side Tape Small", "gstPercent": 18, "hsn": "3919", "unit": "pcs" },
+  { "name": "Double Side Tape Large", "gstPercent": 18, "hsn": "3919", "unit": "pcs" },
+  { "name": "Masking Tape Small", "gstPercent": 18, "hsn": "3919", "unit": "pcs" },
+  { "name": "Masking Tape Large", "gstPercent": 18, "hsn": "3919", "unit": "pcs" },
+  { "name": "Tape Cutter Small", "gstPercent": 18, "hsn": "8205", "unit": "pcs" },
+  { "name": "Tape Cutter Large", "gstPercent": 18, "hsn": "8205", "unit": "pcs" },
+  { "name": "Glue Stick Small", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Glue Stick Large", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevicol Small", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevicol Medium", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevicol Large", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevistik Small", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Fevistik Large", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Gum Bottle Small", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Gum Bottle Large", "gstPercent": 18, "hsn": "3506", "unit": "pcs" },
+  { "name": "Scale 15cm", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Scale 30cm", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Scale 45cm", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Scale 60cm", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Set Square 45 Degree", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Set Square 60 Degree", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Protractor Half Circle", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Protractor Full Circle", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Compass Metal", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Compass Plastic", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Letter Stencil", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Number Stencil", "gstPercent": 18, "hsn": "9017", "unit": "pcs" },
+  { "name": "Rubber Stamp", "gstPercent": 18, "hsn": "9611", "unit": "pcs" },
+  { "name": "Date Stamp", "gstPercent": 18, "hsn": "9611", "unit": "pcs" },
+  { "name": "Received Stamp", "gstPercent": 18, "hsn": "9611", "unit": "pcs" },
+  { "name": "Calculator 8 Digit", "gstPercent": 18, "hsn": "8470", "unit": "pcs" },
+  { "name": "Calculator 12 Digit", "gstPercent": 18, "hsn": "8470", "unit": "pcs" },
+  { "name": "Scientific Calculator", "gstPercent": 18, "hsn": "8470", "unit": "pcs" },
+  { "name": "A4 Paper Ream", "gstPercent": 18, "hsn": "4802", "unit": "ream" },
+  { "name": "A4 Paper Box (10 Reams)", "gstPercent": 18, "hsn": "4802", "unit": "box" },
+  { "name": "A3 Paper Ream", "gstPercent": 18, "hsn": "4802", "unit": "ream" },
+  { "name": "Legal Size Paper Ream", "gstPercent": 18, "hsn": "4802", "unit": "ream" },
+  { "name": "Foolscap Paper Ream", "gstPercent": 18, "hsn": "4802", "unit": "ream" },
+  { "name": "Tracing Paper A4", "gstPercent": 18, "hsn": "4806", "unit": "pkt" },
+  { "name": "Tracing Paper A3", "gstPercent": 18, "hsn": "4806", "unit": "pkt" },
+  { "name": "Art Paper A4", "gstPercent": 18, "hsn": "4810", "unit": "pkt" },
+  { "name": "Art Paper A3", "gstPercent": 18, "hsn": "4810", "unit": "pkt" },
+  { "name": "Chart Paper White", "gstPercent": 18, "hsn": "4802", "unit": "pcs" },
+  { "name": "Chart Paper Coloured", "gstPercent": 18, "hsn": "4802", "unit": "pcs" },
+  { "name": "Cartridge Paper A4", "gstPercent": 18, "hsn": "4802", "unit": "pkt" },
+  { "name": "Lamination Sheet A4", "gstPercent": 18, "hsn": "3920", "unit": "pkt" },
+  { "name": "Lamination Sheet A3", "gstPercent": 18, "hsn": "3920", "unit": "pkt" },
+  { "name": "Hardbound Notebook A4", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Hardbound Notebook A5", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Yearly Planner", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Monthly Planner", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Pen Stand Single", "gstPercent": 18, "hsn": "8304", "unit": "pcs" },
+  { "name": "Pen Stand Combo", "gstPercent": 18, "hsn": "8304", "unit": "pcs" },
+  { "name": "Paper Tray Single", "gstPercent": 18, "hsn": "8304", "unit": "pcs" },
+  { "name": "Paper Tray Double", "gstPercent": 18, "hsn": "8304", "unit": "pcs" },
+  { "name": "Index Tag", "gstPercent": 18, "hsn": "4820", "unit": "pkt" },
+  { "name": "Index Divider 5 Part", "gstPercent": 18, "hsn": "4820", "unit": "set" },
+  { "name": "Index Divider 10 Part", "gstPercent": 18, "hsn": "4820", "unit": "set" },
+  { "name": "Sticky Notes Small", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Sticky Notes Medium", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Sticky Notes Large", "gstPercent": 18, "hsn": "4820", "unit": "pcs" },
+  { "name": "Sticky Notes Neon Pack", "gstPercent": 18, "hsn": "4820", "unit": "pkt" },
+  { "name": "Correction Pen", "gstPercent": 18, "hsn": "9608", "unit": "pcs" },
+  { "name": "Correction Tape", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
+  { "name": "Correction Fluid", "gstPercent": 18, "hsn": "3824", "unit": "pcs" },
+  { "name": "Rubber Band Pack", "gstPercent": 18, "hsn": "4016", "unit": "pkt" },
+  { "name": "Drawing Pin Box", "gstPercent": 18, "hsn": "7317", "unit": "box" },
+  { "name": "Push Pin Box", "gstPercent": 18, "hsn": "7317", "unit": "box" },
+  { "name": "Ink Cartridge Black", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Ink Cartridge Colour", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Toner Black", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "Toner Colour", "gstPercent": 18, "hsn": "3215", "unit": "pcs" },
+  { "name": "OHP Sheet A4", "gstPercent": 18, "hsn": "3920", "unit": "pkt" },
+  { "name": "Binding Comb 10mm", "gstPercent": 18, "hsn": "3926", "unit": "pkt" },
+  { "name": "Binding Comb 14mm", "gstPercent": 18, "hsn": "3926", "unit": "pkt" },
+  { "name": "Binding Comb 19mm", "gstPercent": 18, "hsn": "3926", "unit": "pkt" },
+  { "name": "Binding Comb 25mm", "gstPercent": 18, "hsn": "3926", "unit": "pkt" },
+  { "name": "Binding Comb 32mm", "gstPercent": 18, "hsn": "3926", "unit": "pkt" },
+  { "name": "Bill Roll 57mm", "gstPercent": 18, "hsn": "4811", "unit": "pcs" },
+  { "name": "Bill Roll 80mm", "gstPercent": 18, "hsn": "4811", "unit": "pcs" },
+  { "name": "Water Colour Set 12", "gstPercent": 18, "hsn": "3213", "unit": "set" },
+  { "name": "Water Colour Set 24", "gstPercent": 18, "hsn": "3213", "unit": "set" },
+  { "name": "Poster Colour Set", "gstPercent": 18, "hsn": "3213", "unit": "set" },
+  { "name": "Paint Brush Set", "gstPercent": 18, "hsn": "9603", "unit": "set" },
+  { "name": "Whiteboard Duster", "gstPercent": 18, "hsn": "9603", "unit": "pcs" },
+  { "name": "Board Duster", "gstPercent": 18, "hsn": "9603", "unit": "pcs" },
+  { "name": "Mouse Pad", "gstPercent": 18, "hsn": "4016", "unit": "pcs" },
+  { "name": "Pen Drive 16GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Pen Drive 32GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "Pen Drive 64GB", "gstPercent": 18, "hsn": "8523", "unit": "pcs" },
+  { "name": "CD Pack (50 Pcs)", "gstPercent": 18, "hsn": "8523", "unit": "pkt" },
+  { "name": "DVD Pack (50 Pcs)", "gstPercent": 18, "hsn": "8523", "unit": "pkt" },
+  { "name": "Desk Calendar Stand", "gstPercent": 18, "hsn": "4910", "unit": "pcs" },
+  { "name": "Wall Calendar", "gstPercent": 18, "hsn": "4910", "unit": "pcs" },
+  { "name": "Lock Small", "gstPercent": 18, "hsn": "8301", "unit": "pcs" },
+  { "name": "Lock Large", "gstPercent": 18, "hsn": "8301", "unit": "pcs" },
+  { "name": "Dori Roll (Thread)", "gstPercent": 18, "hsn": "5607", "unit": "pcs" },
+  { "name": "Name Plate Acrylic", "gstPercent": 18, "hsn": "3926", "unit": "pcs" },
+  { "name": "Name Plate Metal", "gstPercent": 18, "hsn": "8310", "unit": "pcs" },
+  { "name": "Notice Board Small", "gstPercent": 18, "hsn": "9610", "unit": "pcs" },
+  { "name": "Notice Board Medium", "gstPercent": 18, "hsn": "9610", "unit": "pcs" },
+  { "name": "Notice Board Large", "gstPercent": 18, "hsn": "9610", "unit": "pcs" },
+  { "name": "Board Cleaner Spray", "gstPercent": 18, "hsn": "3405", "unit": "pcs" },
+  { "name": "Wax Seal Stick", "gstPercent": 18, "hsn": "3404", "unit": "pcs" },
+  { "name": "Numbering Machine", "gstPercent": 18, "hsn": "8472", "unit": "pcs" },
+  { "name": "Cash Box Small", "gstPercent": 18, "hsn": "8303", "unit": "pcs" },
+  { "name": "Cash Box Large", "gstPercent": 18, "hsn": "8303", "unit": "pcs" },
+  { "name": "Document Bag Small", "gstPercent": 18, "hsn": "4202", "unit": "pcs" },
+  { "name": "Document Bag Large", "gstPercent": 18, "hsn": "4202", "unit": "pcs" },
+  { "name": "Paper Weight", "gstPercent": 18, "hsn": "8304", "unit": "pcs" },
+  { "name": "Desk Organiser", "gstPercent": 18, "hsn": "8304", "unit": "pcs" },
+  { "name": "Crepe Paper Roll", "gstPercent": 18, "hsn": "4808", "unit": "pcs" },
+  { "name": "Tissue Paper Colour", "gstPercent": 18, "hsn": "4803", "unit": "pkt" },
+  { "name": "Thermocol Sheet", "gstPercent": 18, "hsn": "3921", "unit": "pcs" },
+  { "name": "Typewriter Ribbon", "gstPercent": 18, "hsn": "9612", "unit": "pcs" },
 ];
+
 
 // ===== INDEXEDDB LAYER =====
 let li_settings_cache = {};
@@ -1627,15 +1664,6 @@ const DB = (() => {
     },
     setCounter: (n) => putRecord('settings', { key: 'counter', data: n }),
 
-        getCounter: async () => {
-      return new Promise((resolve) => {
-        const req = tx('settings').get('counter');
-        req.onsuccess = () => resolve(parseInt(req.result?.data || 0));
-        req.onerror = () => resolve(0);
-      });
-    },
-    setCounter: (n) => putRecord('settings', { key: 'counter', data: n }),
-
     _formatInvoiceNumber: (n) => {
       const prefix = (li_settings_cache.invoicePrefix || 'PBD').toUpperCase();
       return `${prefix}-${String(n).padStart(4, '0')}`;
@@ -1656,13 +1684,19 @@ const DB = (() => {
 
 // ===== INIT / SEED =====
 async function initApp() {
-  await DB.init();
+  try {
+    await DB.init();
+  } catch (err) {
+    console.error("Failed to initialize database:", err);
+    alert("CRITICAL ERROR: Failed to initialize the local database. If another instance of this application is running, please close it first and restart the app.");
+    return;
+  }
 
   let items = await DB.getItems();
-  if (items.length === 0 || !localStorage.getItem('li_seed_250_overwrite')) {
-    // Force overwrite to clear out the old duplicate/detailed items
+  if (items.length === 0 || !localStorage.getItem('li_seed_260_hsn')) {
+    // Force overwrite to update items with proper HSN codes and units
     await DB.saveItems(SEED_ITEMS);
-    localStorage.setItem('li_seed_250_overwrite', 'true');
+    localStorage.setItem('li_seed_260_hsn', 'true');
   }
   const s = await DB.getSettings();
   li_settings_cache = s;
@@ -1672,13 +1706,87 @@ async function initApp() {
     showToast('Welcome! Please fill your shop details first.');
   } else {
     navigate('new');
+    checkAndRestoreDraft();
   }
+  
+  // Wire up change events to trigger draft autosave
+  document.getElementById('inv-customer').addEventListener('input', autoSaveActiveDraft);
+  document.getElementById('inv-phone').addEventListener('input', autoSaveActiveDraft);
+  document.getElementById('inv-date').addEventListener('change', autoSaveActiveDraft);
 }
 
 // ===== NAVIGATION =====
 let currentPage = 'new';
 let currentInvoiceId = null;
 let isReadOnly = false;
+
+// ===== DRAFT AUTO-SAVE & RECOVERY =====
+function autoSaveActiveDraft() {
+  if (isReadOnly || currentPage !== 'new') return;
+  const date = document.getElementById('inv-date').value;
+  const customer = document.getElementById('inv-customer').value.trim();
+  const phone = document.getElementById('inv-phone').value.trim();
+  const items = getItemsFromTable();
+
+  if (!customer && !phone && items.length === 0) {
+    localStorage.removeItem('li_active_draft');
+    return;
+  }
+
+  const draft = {
+    date,
+    customerName: customer,
+    customerPhone: phone,
+    items
+  };
+  localStorage.setItem('li_active_draft', JSON.stringify(draft));
+}
+
+function checkAndRestoreDraft() {
+  const draftStr = localStorage.getItem('li_active_draft');
+  if (!draftStr) return;
+  try {
+    const draft = JSON.parse(draftStr);
+    if (!draft || (!draft.customerName && !draft.customerPhone && (!draft.items || draft.items.length === 0))) {
+      return;
+    }
+    showConfirm('Restore Draft', 'An unsaved draft invoice was found. Would you like to restore it?', () => {
+      document.getElementById('inv-date').value = draft.date || todayISO();
+      document.getElementById('inv-customer').value = draft.customerName || '';
+      document.getElementById('inv-phone').value = draft.customerPhone || '';
+      
+      const tbody = document.getElementById('items-tbody');
+      tbody.innerHTML = '';
+      rowCounter = 0;
+      
+      if (draft.items && draft.items.length > 0) {
+        draft.items.forEach(item => addItemRow(item));
+      } else {
+        addItemRow();
+      }
+      recalcTotals();
+      showToast('Draft restored successfully!');
+    });
+  } catch (e) {
+    console.error("Failed to parse active draft:", e);
+  }
+}
+
+// ===== GLOBAL HOTKEYS =====
+document.addEventListener('keydown', (e) => {
+  if (currentPage !== 'new') return;
+  
+  if (e.key === 'F12' || (e.ctrlKey && e.key === 'Enter')) {
+    e.preventDefault();
+    finaliseInvoice();
+  } else if (e.key === 'F9' || (e.ctrlKey && e.key === 's')) {
+    e.preventDefault();
+    saveDraft();
+  } else if (e.key === 'F8' || (e.ctrlKey && e.key === 'n')) {
+    e.preventDefault();
+    resetNewInvoice();
+  }
+});
 
 function navigate(page, invoiceId) {
   currentPage = page;
@@ -2035,12 +2143,6 @@ function addItemRow(data) {
       if (isKnown || isReadOnly) tr.querySelector('.item-gst').disabled = true;
     });
   }
-  if (data && data.name) {
-    DB.getItems().then(items => {
-      isKnown = items.some(i => i.name.toLowerCase() === data.name.toLowerCase().trim());
-      if (isKnown || isReadOnly) tr.querySelector('.item-gst').disabled = true;
-    });
-  }
 }
 
 function renumberRows() {
@@ -2072,6 +2174,7 @@ function recalcTotals() {
   document.getElementById('tot-cgst').textContent = formatCurrency(t.totalCGST);
   document.getElementById('tot-sgst').textContent = formatCurrency(t.totalSGST);
   document.getElementById('tot-grand').textContent = formatCurrency(t.grandTotal);
+  autoSaveActiveDraft();
 }
 
 function getItemsFromTable() {
@@ -2087,12 +2190,13 @@ function getItemsFromTable() {
 }
 
 // ===== INVOICE OPERATIONS =====
-function resetNewInvoice() {
+async function resetNewInvoice() {
+  localStorage.removeItem('li_active_draft');
   currentInvoiceId = null;
   isReadOnly = false;
   document.getElementById('btn-new-from-view').style.display = 'none';
   hideError();
-  document.getElementById('inv-number').value = DB.peekNextNumber();
+  document.getElementById('inv-number').value = await DB.peekNextNumber();
   document.getElementById('inv-date').value = todayISO();
   document.getElementById('inv-customer').value = '';
   document.getElementById('inv-phone').value = '';
@@ -2110,6 +2214,7 @@ function resetNewInvoice() {
   document.getElementById('btn-save-draft').classList.remove('hidden');
   document.getElementById('btn-finalise').classList.remove('hidden');
   document.getElementById('btn-add-row').classList.remove('hidden');
+  document.getElementById('btn-cancel-invoice').classList.add('hidden');
 
   addItemRow();
   fillShopDetails();
@@ -2218,17 +2323,23 @@ async function saveDraft() {
     data.createdAt = existing.createdAt;
     invoices[idx] = data;
   } else {
-    data.id = DB.nextInvoiceNumber();
+    data.id = await DB.nextInvoiceNumber();
     data.createdAt = new Date().toISOString();
     data.updatedAt = data.createdAt;
     invoices.unshift(data);
   }
 
-  await DB.saveInvoices(invoices);
-  await saveNewItems(data.items);
-  currentInvoiceId = data.id;
-  document.getElementById('inv-number').value = data.id;
-  showToast('Draft saved: ' + data.id);
+  try {
+    await DB.saveInvoices(invoices);
+    await saveNewItems(data.items);
+    localStorage.removeItem('li_active_draft');
+    currentInvoiceId = data.id;
+    document.getElementById('inv-number').value = data.id;
+    showToast('Draft saved: ' + data.id);
+  } catch (err) {
+    showError('Failed to save draft: ' + err.message);
+    console.error(err);
+  }
 }
 
 async function finaliseInvoice() {
@@ -2248,21 +2359,27 @@ async function finaliseInvoice() {
       data.createdAt = existing.createdAt;
       invoices[idx] = data;
     } else {
-      data.id = DB.nextInvoiceNumber();
+      data.id = await DB.nextInvoiceNumber();
       data.createdAt = new Date().toISOString();
       data.updatedAt = data.createdAt;
       invoices.unshift(data);
     }
 
-    await DB.saveInvoices(invoices);
-    await saveNewItems(data.items);
-    currentInvoiceId = data.id;
-    document.getElementById('inv-number').value = data.id;
+    try {
+      await DB.saveInvoices(invoices);
+      await saveNewItems(data.items);
+      localStorage.removeItem('li_active_draft');
+      currentInvoiceId = data.id;
+      document.getElementById('inv-number').value = data.id;
 
-    showToast('Invoice finalised: ' + data.id);
-    setReadOnly();
-    await renderPrintArea(data);
-    setTimeout(() => window.print(), 500);
+      showToast('Invoice finalised: ' + data.id);
+      setReadOnly();
+      await renderPrintArea(data);
+      setTimeout(() => window.print(), 500);
+    } catch (err) {
+      showError('Failed to finalise invoice: ' + err.message);
+      console.error(err);
+    }
   });
 }
 
@@ -2270,9 +2387,19 @@ async function saveNewItems(items) {
   const savedItems = await DB.getItems();
   items.forEach(item => {
     const key = item.name.toLowerCase().trim();
-    const exists = savedItems.findIndex(i => i.name.toLowerCase() === key);
-    if (exists === -1 && item.name) {
-      savedItems.push({ name: titleCase(item.name), gstPercent: item.gstPercent, hsn: item.hsn, unit: item.unit });
+    const idx = savedItems.findIndex(i => i.name.toLowerCase() === key);
+    if (idx === -1 && item.name) {
+      const initialStock = 0 - (parseFloat(item.quantity) || 0);
+      savedItems.push({ 
+        name: titleCase(item.name), 
+        gstPercent: item.gstPercent, 
+        hsn: item.hsn, 
+        unit: item.unit,
+        stock: initialStock
+      });
+    } else if (idx > -1) {
+      const currentStock = savedItems[idx].stock !== undefined ? parseFloat(savedItems[idx].stock) : 0;
+      savedItems[idx].stock = currentStock - (parseFloat(item.quantity) || 0);
     }
   });
   await DB.saveItems(savedItems);
@@ -2297,9 +2424,11 @@ async function setReadOnly() {
     if (inv.status === 'final') {
       badge.className = 'badge badge-final';
       badge.textContent = 'FINAL';
+      document.getElementById('btn-cancel-invoice').classList.remove('hidden');
     } else if (inv.status === 'cancelled') {
       badge.className = 'badge badge-cancelled';
       badge.textContent = 'CANCELLED';
+      document.getElementById('btn-cancel-invoice').classList.add('hidden');
     }
   }
 }
@@ -2352,6 +2481,7 @@ async function loadInvoice(invoiceId) {
   document.getElementById('btn-save-draft').classList.remove('hidden');
   document.getElementById('btn-finalise').classList.remove('hidden');
   document.getElementById('btn-add-row').classList.remove('hidden');
+  document.getElementById('btn-cancel-invoice').classList.add('hidden');
 
   document.getElementById('inv-date').disabled = false;
   document.getElementById('inv-customer').disabled = false;
@@ -2603,46 +2733,46 @@ async function downloadPDF() {
     btnPdf.textContent = 'Generating PDF...';
     btnPdf.disabled = true;
   }
-  let inv;
-  if (currentInvoiceId) {
-    const invoices = await DB.getInvoices();
-    inv = invoices.find(i => i.id === currentInvoiceId);
-  }
-  if (!inv) {
-    // Build from current form for unsaved draft
-    if (!validateInvoice()) return;
-    inv = await buildInvoiceData(false);
-    inv.id = document.getElementById('inv-number').value;
-    if (!inv.shopSnapshot) inv.shopSnapshot = await DB.getSettings();
-  }
-
-  if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
-    showToast('PDF libraries not loaded. Please check internet connection.');
-    return;
-  }
-
-  showToast('Generating PDF...');
-
-  // Create an off-screen wrapper at fixed A4 pixel width (794px ≈ 210mm @96dpi)
-  let wrapper = document.getElementById('pdf-capture-wrapper');
-  if (!wrapper) {
-    wrapper = document.createElement('div');
-    wrapper.id = 'pdf-capture-wrapper';
-    document.body.appendChild(wrapper);
-  }
-
-  // Move print area into the wrapper and make it visible
-  const el = document.getElementById('invoice-print-area');
-  wrapper.appendChild(el);
-  el.style.display = 'block';
-
-  // Render print content
-  await renderPrintArea(inv);
-
-  // Wait for QR code to render
-  await new Promise(r => setTimeout(r, 600));
-
   try {
+    let inv;
+    if (currentInvoiceId) {
+      const invoices = await DB.getInvoices();
+      inv = invoices.find(i => i.id === currentInvoiceId);
+    }
+    if (!inv) {
+      // Build from current form for unsaved draft
+      if (!validateInvoice()) return;
+      inv = await buildInvoiceData(false);
+      inv.id = document.getElementById('inv-number').value;
+      if (!inv.shopSnapshot) inv.shopSnapshot = await DB.getSettings();
+    }
+
+    if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+      showToast('PDF libraries not loaded. Please check internet connection.');
+      return;
+    }
+
+    showToast('Generating PDF...');
+
+    // Create an off-screen wrapper at fixed A4 pixel width (794px ≈ 210mm @96dpi)
+    let wrapper = document.getElementById('pdf-capture-wrapper');
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.id = 'pdf-capture-wrapper';
+      document.body.appendChild(wrapper);
+    }
+
+    // Move print area into the wrapper and make it visible
+    const el = document.getElementById('invoice-print-area');
+    wrapper.appendChild(el);
+    el.style.display = 'block';
+
+    // Render print content
+    await renderPrintArea(inv);
+
+    // Wait for QR code to render
+    await new Promise(r => setTimeout(r, 600));
+
     const canvas = await html2canvas(el, {
       scale: 2,
       useCORS: true,
@@ -2664,27 +2794,20 @@ async function downloadPDF() {
   } catch(e) {
     showToast('PDF failed: ' + e.message);
     console.error(e);
+  } finally {
+    if (btnPdf) {
+      btnPdf.textContent = originalText;
+      btnPdf.disabled = false;
+    }
+    const el = document.getElementById('invoice-print-area');
+    if (el) {
+      document.body.appendChild(el);
+      el.style.display = 'none';
+    }
   }
-
-  // Move print area back to its original place and hide it
-  document.body.appendChild(el);
-  el.style.display = 'none';
 }
 
 // ===== INVOICE HISTORY =====
-
-async function cancelInvoiceAction(id) {
-  showConfirm('Cancel Invoice', 'Are you sure you want to cancel this invoice?', async () => {
-    const invoices = await DB.getInvoices();
-    const existing = invoices.find(i => i.id === id);
-    if (!existing || existing.status === 'cancelled') return;
-    existing.status = 'cancelled';
-    existing.updatedAt = new Date().toISOString();
-    await DB.saveInvoices(invoices);
-    showToast('Invoice cancelled: ' + id);
-    renderHistory();
-  });
-}
 
 async function renderHistory(filter) {
   const invoices = await DB.getInvoices();
@@ -2734,6 +2857,7 @@ async function renderHistory(filter) {
         let actions = `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openInvoice('${inv.id}')">Edit</button>`;
         if (inv.status === 'final') {
           actions += ` <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();reprintInvoice('${inv.id}')">Reprint</button>`;
+          actions += ` <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();cancelInvoiceAction('${inv.id}')">Cancel</button>`;
         }
 
         return `
@@ -2763,14 +2887,23 @@ async function reprintInvoice(id) {
 
 function cancelInvoiceAction(id) {
   showConfirm('Cancel Invoice', `Mark invoice ${id} as Cancelled? This cannot be undone.`, async () => {
-    const invoices = await DB.getInvoices();
-    const inv = invoices.find(i => i.id === id);
-    if (inv) {
-      inv.status = 'cancelled';
-      inv.updatedAt = new Date().toISOString();
-      await DB.saveInvoices(invoices);
-      showToast('Invoice ' + id + ' cancelled.');
-      renderHistory(document.getElementById('search-invoices').value);
+    try {
+      const invoices = await DB.getInvoices();
+      const inv = invoices.find(i => i.id === id);
+      if (inv) {
+        inv.status = 'cancelled';
+        inv.updatedAt = new Date().toISOString();
+        await DB.saveInvoices(invoices);
+        showToast('Invoice ' + id + ' cancelled.');
+        if (currentPage === 'history') {
+          renderHistory(document.getElementById('search-invoices').value);
+        } else {
+          loadInvoice(id);
+        }
+      }
+    } catch (err) {
+      showError('Failed to cancel invoice: ' + err.message);
+      console.error(err);
     }
   });
 }
@@ -2832,6 +2965,9 @@ async function loadSettings() {
   document.getElementById('set-shop-name').value = s.shopName || '';
   document.getElementById('set-shop-address').value = s.shopAddress || '';
   document.getElementById('set-gst-number').value = s.gstNumber || '';
+  document.getElementById('set-shop-phone').value = s.shopPhone || '';
+  document.getElementById('set-shop-email').value = s.shopEmail || '';
+  document.getElementById('set-shop-website').value = s.shopWebsite || '';
   document.getElementById('set-upi-id').value = s.upiId || '';
   document.getElementById('set-bank-name').value = s.bankName || '';
   document.getElementById('set-acc-number').value = s.accNumber || '';
@@ -2846,6 +2982,9 @@ async function saveSettings() {
     shopName: document.getElementById('set-shop-name').value.trim(),
     shopAddress: document.getElementById('set-shop-address').value.trim(),
     gstNumber: document.getElementById('set-gst-number').value.trim(),
+    shopPhone: document.getElementById('set-shop-phone').value.trim(),
+    shopEmail: document.getElementById('set-shop-email').value.trim(),
+    shopWebsite: document.getElementById('set-shop-website').value.trim(),
     upiId: document.getElementById('set-upi-id').value.trim(),
     bankName: document.getElementById('set-bank-name').value.trim(),
     accNumber: document.getElementById('set-acc-number').value.trim(),
@@ -2915,6 +3054,7 @@ async function renderInventory(query = '') {
       <td>${item.hsn || '—'}</td>
       <td>${item.gstPercent}%</td>
       <td>${item.unit || '—'}</td>
+      <td>${item.stock !== undefined ? item.stock : 0}</td>
       <td class="auto-style-29">
         <button class="auto-style-88 btn btn-sm btn-outline" onclick="openItemModal('${encodeURIComponent(item.name).replace(/\'/g, "%27")}')">Edit</button>
         <button class="auto-style-89 btn btn-sm btn-outline" onclick="deleteItem('${encodeURIComponent(item.name).replace(/\'/g, "%27")}')">Del</button>
@@ -2942,6 +3082,7 @@ async function openItemModal(encodedName = null) {
       inpHsn.value = item.hsn || '';
       inpGst.value = item.gstPercent || 0;
       inpUnit.value = item.unit || 'pcs';
+      document.getElementById('edit-item-stock').value = item.stock !== undefined ? item.stock : 0;
       inpOrig.value = item.name;
     }
   } else {
@@ -2950,6 +3091,7 @@ async function openItemModal(encodedName = null) {
     inpHsn.value = '';
     inpGst.value = '0';
     inpUnit.value = 'pcs';
+    document.getElementById('edit-item-stock').value = '0';
     inpOrig.value = '';
   }
   
@@ -2965,6 +3107,7 @@ async function saveItemFromModal() {
   const hsn = document.getElementById('edit-item-hsn').value.trim();
   const gst = parseInt(document.getElementById('edit-item-gst').value) || 0;
   const unit = document.getElementById('edit-item-unit').value.trim();
+  const stock = parseInt(document.getElementById('edit-item-stock').value) || 0;
   const origName = document.getElementById('edit-item-original-name').value;
   
   if(!name) {
@@ -2981,14 +3124,14 @@ async function saveItemFromModal() {
         showToast('Another item with this name already exists!');
         return;
       }
-      items[idx] = { name: titleCase(name), hsn, gstPercent: gst, unit };
+      items[idx] = { name: titleCase(name), hsn, gstPercent: gst, unit, stock };
     }
   } else {
     if(items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
       showToast('Item already exists!');
       return;
     }
-    items.push({ name: titleCase(name), hsn, gstPercent: gst, unit });
+    items.push({ name: titleCase(name), hsn, gstPercent: gst, unit, stock });
   }
   
   await DB.saveItems(items);

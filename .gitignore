@@ -1,0 +1,13 @@
+# Electron user data directory
+.userdata/
+
+# Build outputs
+dist/
+
+# Dependencies
+node_modules/
+
+# Local env files / backups
+*.local
+*.bak
+*.tmp
