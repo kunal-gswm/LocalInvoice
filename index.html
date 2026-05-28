@@ -56,6 +56,13 @@ body {
   --shadow-lg: 0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05);
   --radius: 8px;
   --radius-lg: 12px;
+
+  --badge-draft-bg: #fef3c7;
+  --badge-draft-text: #92400e;
+  --badge-final-bg: #d1fae5;
+  --badge-final-text: #065f46;
+  --badge-cancelled-bg: #fee2e2;
+  --badge-cancelled-text: #991b1b;
 }
 [data-theme="dark"] {
   --red: #e74c3c;
@@ -76,6 +83,13 @@ body {
   --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.24);
   --shadow-md: 0 4px 6px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
   --shadow-lg: 0 10px 15px rgba(0,0,0,0.6), 0 4px 6px rgba(0,0,0,0.4);
+
+  --badge-draft-bg: #78350f;
+  --badge-draft-text: #fef3c7;
+  --badge-final-bg: #064e3b;
+  --badge-final-text: #a7f3d0;
+  --badge-cancelled-bg: #7f1d1d;
+  --badge-cancelled-text: #fecaca;
 }
 
 
@@ -105,7 +119,7 @@ body {
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
-}
+ outline: none; } .app-logo:focus-visible { box-shadow: 0 0 0 3px rgba(192,57,43,0.3); border-radius: 4px; }
 .app-logo span { color: var(--gray-800); }
 nav {
   display: flex;
@@ -149,13 +163,12 @@ nav button.active {
 }
 
 /* ===== CARDS ===== */
-.card {
-  background: var(--white);
+.card { background: var(--white);
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: 24px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 .card-title {
   font-size: 1.1rem;
@@ -173,7 +186,7 @@ nav button.active {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 .form-group {
   display: flex;
@@ -273,9 +286,9 @@ nav button.active {
   letter-spacing: 0.5px;
   border-radius: 20px;
 }
-.badge-draft { background: #fef3c7; color: #92400e; }
-.badge-final { background: #d1fae5; color: #065f46; }
-.badge-cancelled { background: #fee2e2; color: #991b1b; }
+.badge-draft { background: var(--badge-draft-bg); color: var(--badge-draft-text); }
+.badge-final { background: var(--badge-final-bg); color: var(--badge-final-text); }
+.badge-cancelled { background: var(--badge-cancelled-bg); color: var(--badge-cancelled-text); }
 
 /* ===== ITEMS TABLE ===== */
 .items-table-wrap {
@@ -338,8 +351,8 @@ nav button.active {
 .items-table .col-action { width: 44px; text-align: center; }
 .items-table .computed { font-weight: 500; color: var(--gray-600); text-align: right; padding-right: 10px; }
 .btn-remove-row {
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   border: none;
   background: #fee2e2;
   color: #991b1b;
@@ -965,6 +978,16 @@ nav button.active {
 .auto-style-87 { text-align:center; padding:30px; color:var(--gray-400); }
 .auto-style-88 { padding:4px 8px; font-size:0.75rem; }
 .auto-style-89 { padding:4px 8px; font-size:0.75rem; color:var(--red); border-color:var(--red); }
+
+/* ===== ACCESSIBILITY ===== */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 </style>
 
 <script>
@@ -982,16 +1005,16 @@ nav button.active {
 <!-- ===== HEADER ===== -->
 <header id="app-header" class="no-print">
   <div class="header-inner">
-    <div class="auto-style-1 app-logo" onclick="navigate('new')">
+    <h1 class="auto-style-1 app-logo" onclick="navigate('new')" tabindex="0" role="button" aria-label="Home">
       
       <div>Local<span>Invoice</span></div>
-    </div>
+    </h1>
     <nav>
       <button id="nav-new" onclick="navigate('new')">New Invoice</button>
       <button id="nav-history" onclick="navigate('history')">History</button>
       <button id="nav-items" onclick="navigate('items')">Items</button>
       <button id="nav-settings" onclick="navigate('settings')">Settings</button>
-      <button class="auto-style-2" id="theme-toggle" onclick="toggleTheme()" title="Toggle Dark Mode"></button>
+      <button class="auto-style-2" id="theme-toggle" onclick="toggleTheme()" title="Toggle Dark Mode" aria-label="Toggle Dark Mode"></button>
     </nav>
   </div>
 </header>
@@ -1005,15 +1028,15 @@ nav button.active {
     <div class="card-title">Shop Details</div>
     <div class="form-grid">
       <div class="form-group">
-        <label>Shop Name</label>
+        <label for="inv-shop-name">Shop Name</label>
         <input type="text" id="inv-shop-name" class="readonly-field" readonly tabindex="-1">
       </div>
       <div class="form-group">
-        <label>Address</label>
+        <label for="inv-shop-address">Address</label>
         <input type="text" id="inv-shop-address" class="readonly-field" readonly tabindex="-1">
       </div>
       <div class="form-group">
-        <label>GST Number</label>
+        <label for="inv-shop-gst">GST Number</label>
         <input type="text" id="inv-shop-gst" class="readonly-field" readonly tabindex="-1">
       </div>
     </div>
@@ -1026,19 +1049,19 @@ nav button.active {
     </div>
     <div class="form-grid">
       <div class="form-group">
-        <label>Invoice Number</label>
+        <label for="inv-number">Invoice Number</label>
         <input type="text" id="inv-number" readonly class="readonly-field" tabindex="-1">
       </div>
       <div class="form-group">
-        <label>Date</label>
+        <label for="inv-date">Date</label>
         <input type="date" id="inv-date" tabindex="1">
       </div>
       <div class="form-group">
-        <label>Customer Name *</label>
+        <label for="inv-customer">Customer Name *</label>
         <input type="text" id="inv-customer" placeholder="Enter customer name" tabindex="2" autocomplete="off">
       </div>
       <div class="form-group">
-        <label>Customer Phone</label>
+        <label for="inv-phone">Customer Phone</label>
         <input type="tel" id="inv-phone" placeholder="Optional" tabindex="3">
       </div>
     </div>
@@ -1170,51 +1193,51 @@ nav button.active {
     <div class="card-title">Shop Information</div>
     <div class="form-grid">
       <div class="form-group">
-        <label>Shop Name</label>
+        <label for="set-shop-name">Shop Name</label>
         <input type="text" id="set-shop-name" placeholder="Your Shop Name">
       </div>
       <div class="form-group">
-        <label>Shop Address</label>
+        <label for="set-shop-address">Shop Address</label>
         <input type="text" id="set-shop-address" placeholder="Full Address">
       </div>
       <div class="form-group">
-        <label>GST Number</label>
+        <label for="set-gst-number">GST Number</label>
         <input type="text" id="set-gst-number" placeholder="e.g. 29ABCDE1234F1Z5">
       </div>
       <div class="form-group">
-        <label>Shop Phone</label>
+        <label for="set-shop-phone">Shop Phone</label>
         <input type="text" id="set-shop-phone" placeholder="e.g. +91 98765 43210">
       </div>
       <div class="form-group">
-        <label>Shop Email</label>
+        <label for="set-shop-email">Shop Email</label>
         <input type="text" id="set-shop-email" placeholder="e.g. info@shop.com">
       </div>
       <div class="form-group">
-        <label>Shop Website</label>
+        <label for="set-shop-website">Shop Website</label>
         <input type="text" id="set-shop-website" placeholder="e.g. www.shop.com">
       </div>
       <div class="form-group">
-        <label>UPI ID</label>
+        <label for="set-upi-id">UPI ID</label>
         <input type="text" id="set-upi-id" placeholder="e.g. shop@upi">
       </div>
       <div class="form-group">
-        <label>Bank Name</label>
+        <label for="set-bank-name">Bank Name</label>
         <input type="text" id="set-bank-name" placeholder="e.g. State Bank of India">
       </div>
       <div class="form-group">
-        <label>Account Number</label>
+        <label for="set-acc-number">Account Number</label>
         <input type="text" id="set-acc-number" placeholder="Bank Account Number">
       </div>
       <div class="form-group">
-        <label>IFSC Code</label>
+        <label for="set-ifsc">IFSC Code</label>
         <input type="text" id="set-ifsc" placeholder="e.g. SBIN0001234">
       </div>
       <div class="form-group">
-        <label>Account Holder Name</label>
+        <label for="set-acc-holder">Account Holder Name</label>
         <input type="text" id="set-acc-holder" placeholder="Name on Account">
       </div>
       <div class="form-group">
-        <label>Invoice Prefix</label>
+        <label for="set-invoice-prefix">Invoice Prefix</label>
         <input type="text" id="set-invoice-prefix" placeholder="e.g. PBD, LI, INV" maxlength="6">
       </div>
     </div>
@@ -1234,31 +1257,31 @@ nav button.active {
 <div class="toast" id="toast"></div>
 
 <!-- ===== ITEM MODAL ===== -->
-<div class="modal-overlay" id="item-modal">
+<div class="modal-overlay" id="item-modal" role="dialog" aria-modal="true" aria-labelledby="item-modal-title">
   <div class="auto-style-17 modal-box">
     <h3 class="auto-style-18" id="item-modal-title">Add New Item</h3>
     <input type="hidden" id="edit-item-original-name">
     <div class="auto-style-19 form-grid">
       <div class="form-group">
-        <label>Item Name *</label>
+        <label for="edit-item-name">Item Name *</label>
         <input class="auto-style-20" type="text" id="edit-item-name" placeholder="Enter item name" autocomplete="off">
       </div>
       <div class="auto-style-21">
         <div class="form-group">
-          <label>HSN</label>
-          <input class="auto-style-20" type="text" id="edit-item-hsn" placeholder="e.g. 9609">
+          <label for="edit-item-hsn">HSN</label>
+        <input class="auto-style-20" type="text" id="edit-item-hsn" placeholder="e.g. 9609">
         </div>
         <div class="form-group">
-          <label>GST %</label>
-          <input class="auto-style-20" type="number" id="edit-item-gst" placeholder="0 - 28" min="0" max="28">
+          <label for="edit-item-gst">GST %</label>
+        <input class="auto-style-20" type="number" id="edit-item-gst" placeholder="0 - 28" min="0" max="28">
         </div>
       </div>
       <div class="form-group">
-        <label>Unit</label>
+        <label for="edit-item-unit">Unit</label>
         <input class="auto-style-20" type="text" id="edit-item-unit" placeholder="e.g. pcs, box">
       </div>
       <div class="form-group">
-        <label>Stock Quantity</label>
+        <label for="edit-item-stock">Stock Quantity</label>
         <input class="auto-style-20" type="number" id="edit-item-stock" placeholder="e.g. 100" min="0">
       </div>
     </div>
@@ -1270,7 +1293,7 @@ nav button.active {
 </div>
 
 <!-- ===== CONFIRM MODAL ===== -->
-<div class="modal-overlay" id="confirm-modal">
+<div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
   <div class="modal-box">
     <h3 id="modal-title">Confirm</h3>
     <p id="modal-message">Are you sure?</p>
@@ -1585,6 +1608,9 @@ const SEED_ITEMS = [
 
 // ===== INDEXEDDB LAYER =====
 let li_settings_cache = {};
+let activeToastTimeout = null;
+let activeErrorTimeout = null;
+let isSubmitting = false;
 
 const DB = (() => {
   let db = null;
@@ -1772,6 +1798,30 @@ function checkAndRestoreDraft() {
   }
 }
 
+
+// Close modals on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const itemModal = document.getElementById('item-modal');
+    const confirmModal = document.getElementById('confirm-modal');
+    if (itemModal && itemModal.classList.contains('show')) closeItemModal();
+    if (confirmModal && confirmModal.classList.contains('show')) closeModal();
+  }
+});
+
+// Logo Enter Key
+document.addEventListener('DOMContentLoaded', () => {
+  const logo = document.querySelector('.app-logo');
+  if (logo) {
+    logo.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        navigate('new');
+      }
+    });
+  }
+});
+
 // ===== GLOBAL HOTKEYS =====
 document.addEventListener('keydown', (e) => {
   if (currentPage !== 'new') return;
@@ -1843,24 +1893,40 @@ function formatDate(iso) {
 
 function showToast(msg) {
   const t = document.getElementById('toast');
+  if (!t) return;
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+  if (activeToastTimeout) clearTimeout(activeToastTimeout);
+  activeToastTimeout = setTimeout(() => {
+    t.classList.remove('show');
+    activeToastTimeout = null;
+  }, 2500);
 }
 
 function showError(msg) {
   const el = document.getElementById('invoice-error');
+  if (!el) return;
   el.textContent = msg;
   el.classList.add('show');
   el.style.display = 'block';
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  setTimeout(() => { el.classList.remove('show'); el.style.display = 'none'; }, 5000);
+  if (activeErrorTimeout) clearTimeout(activeErrorTimeout);
+  activeErrorTimeout = setTimeout(() => {
+    el.classList.remove('show');
+    el.style.display = 'none';
+    activeErrorTimeout = null;
+  }, 5000);
 }
 
 function hideError() {
   const el = document.getElementById('invoice-error');
+  if (!el) return;
   el.classList.remove('show');
   el.style.display = 'none';
+  if (activeErrorTimeout) {
+    clearTimeout(activeErrorTimeout);
+    activeErrorTimeout = null;
+  }
 }
 
 // ===== MODAL =====
@@ -2039,7 +2105,7 @@ function addItemRow(data) {
     <td class="col-base computed">${data ? formatCurrency(calcGST(data.finalPrice || 0, data.gstPercent || 0).base) : '—'}</td>
     <td class="col-gstamt computed">${data ? formatCurrency(calcGST(data.finalPrice || 0, data.gstPercent || 0).gstAmount) : '—'}</td>
     <td class="col-total computed">${data ? formatCurrency((data.finalPrice || 0) * (data.quantity || 0)) : '—'}</td>
-    <td class="col-action">${isReadOnly ? '' : '<button class="btn-remove-row" title="Remove item">×</button>'}</td>
+    <td class="col-action">${isReadOnly ? '' : '<button class="btn-remove-row" aria-label="Remove item" title="Remove item">×</button>'}</td>
   `;
   tbody.appendChild(tr);
 
@@ -2266,22 +2332,57 @@ function validateInvoice() {
     document.getElementById('inv-customer').focus();
     return false;
   }
+  if (customer.length > 100) {
+    showError('Customer Name must not exceed 100 characters.');
+    document.getElementById('inv-customer').focus();
+    return false;
+  }
+
+  const phone = document.getElementById('inv-phone').value.trim();
+  if (phone && !/^\+?[0-9\s\-()]{3,20}$/.test(phone)) {
+    showError('Customer Phone must be a valid phone number (digits, spaces, hyphens, parentheses).');
+    document.getElementById('inv-phone').focus();
+    return false;
+  }
+
   const items = getItemsFromTable();
   if (items.length === 0) {
     showError('At least one item is required.');
     return false;
   }
+  if (items.length > 100) {
+    showError('Invoices are capped at a maximum of 100 items.');
+    return false;
+  }
+
   for (let i = 0; i < items.length; i++) {
-    if (!items[i].name) {
+    const item = items[i];
+    if (!item.name) {
       showError(`Item ${i+1}: Item name is blank.`);
       return false;
     }
-    if (items[i].quantity <= 0) {
-      showError(`Item "${items[i].name}": Quantity must be greater than zero.`);
+    if (item.name.length > 200) {
+      showError(`Item ${i+1}: Name must not exceed 200 characters.`);
       return false;
     }
-    if (items[i].finalPrice <= 0) {
-      showError(`Item "${items[i].name}": Price must be greater than zero.`);
+    if (isNaN(item.quantity) || item.quantity <= 0) {
+      showError(`Item "${item.name}": Quantity must be a valid number greater than zero.`);
+      return false;
+    }
+    if (item.quantity > 1000000) {
+      showError(`Item "${item.name}": Quantity cannot exceed 1,000,000.`);
+      return false;
+    }
+    if (isNaN(item.finalPrice) || item.finalPrice <= 0) {
+      showError(`Item "${item.name}": Price must be a valid number greater than zero.`);
+      return false;
+    }
+    if (item.finalPrice > 10000000) {
+      showError(`Item "${item.name}": Price cannot exceed ₹1,000,000.`);
+      return false;
+    }
+    if (isNaN(item.gstPercent) || item.gstPercent < 0 || item.gstPercent > 100) {
+      showError(`Item "${item.name}": GST percentage must be between 0% and 100%.`);
       return false;
     }
   }
@@ -2308,50 +2409,18 @@ async function buildInvoiceData(finalize) {
 }
 
 async function saveDraft() {
+  if (isSubmitting) return;
   if (!validateInvoice()) return;
-  const data = await buildInvoiceData(false);
-  const invoices = await DB.getInvoices();
-
-  if (data.id) {
-    const existing = invoices.find(i => i.id === data.id);
-    if (existing && existing.status === 'final') {
-      showError('This invoice is finalised and cannot be edited.');
-      return;
-    }
-    const idx = invoices.findIndex(i => i.id === data.id);
-    data.updatedAt = new Date().toISOString();
-    data.createdAt = existing.createdAt;
-    invoices[idx] = data;
-  } else {
-    data.id = await DB.nextInvoiceNumber();
-    data.createdAt = new Date().toISOString();
-    data.updatedAt = data.createdAt;
-    invoices.unshift(data);
-  }
-
+  isSubmitting = true;
   try {
-    await DB.saveInvoices(invoices);
-    await saveNewItems(data.items);
-    localStorage.removeItem('li_active_draft');
-    currentInvoiceId = data.id;
-    document.getElementById('inv-number').value = data.id;
-    showToast('Draft saved: ' + data.id);
-  } catch (err) {
-    showError('Failed to save draft: ' + err.message);
-    console.error(err);
-  }
-}
-
-async function finaliseInvoice() {
-  if (!validateInvoice()) return;
-  showConfirm('Finalise Invoice', 'Once finalised, this invoice cannot be edited. Continue?', async () => {
-    const data = await buildInvoiceData(true);
+    const data = await buildInvoiceData(false);
     const invoices = await DB.getInvoices();
 
     if (data.id) {
       const existing = invoices.find(i => i.id === data.id);
       if (existing && existing.status === 'final') {
-        showError('This invoice is already finalised.');
+        showError('This invoice is finalised and cannot be edited.');
+        isSubmitting = false;
         return;
       }
       const idx = invoices.findIndex(i => i.id === data.id);
@@ -2365,7 +2434,48 @@ async function finaliseInvoice() {
       invoices.unshift(data);
     }
 
+    await DB.saveInvoices(invoices);
+    await saveNewItems(data.items);
+    localStorage.removeItem('li_active_draft');
+    currentInvoiceId = data.id;
+    document.getElementById('inv-number').value = data.id;
+    showToast('Draft saved: ' + data.id);
+  } catch (err) {
+    showError('Failed to save draft: ' + err.message);
+    console.error(err);
+  } finally {
+    isSubmitting = false;
+  }
+}
+
+async function finaliseInvoice() {
+  if (isSubmitting) return;
+  if (!validateInvoice()) return;
+  showConfirm('Finalise Invoice', 'Once finalised, this invoice cannot be edited. Continue?', async () => {
+    if (isSubmitting) return;
+    isSubmitting = true;
     try {
+      const data = await buildInvoiceData(true);
+      const invoices = await DB.getInvoices();
+
+      if (data.id) {
+        const existing = invoices.find(i => i.id === data.id);
+        if (existing && existing.status === 'final') {
+          showError('This invoice is already finalised.');
+          isSubmitting = false;
+          return;
+        }
+        const idx = invoices.findIndex(i => i.id === data.id);
+        data.updatedAt = new Date().toISOString();
+        data.createdAt = existing.createdAt;
+        invoices[idx] = data;
+      } else {
+        data.id = await DB.nextInvoiceNumber();
+        data.createdAt = new Date().toISOString();
+        data.updatedAt = data.createdAt;
+        invoices.unshift(data);
+      }
+
       await DB.saveInvoices(invoices);
       await saveNewItems(data.items);
       localStorage.removeItem('li_active_draft');
@@ -2379,6 +2489,8 @@ async function finaliseInvoice() {
     } catch (err) {
       showError('Failed to finalise invoice: ' + err.message);
       console.error(err);
+    } finally {
+      isSubmitting = false;
     }
   });
 }
@@ -2434,62 +2546,68 @@ async function setReadOnly() {
 }
 
 async function loadInvoice(invoiceId) {
-  const invoices = await DB.getInvoices();
-  const inv = invoices.find(i => i.id === invoiceId);
-  if (!inv) { showToast('Invoice not found'); return; }
+  try {
+    const invoices = await DB.getInvoices();
+    const inv = invoices.find(i => i.id === invoiceId);
+    if (!inv) { showToast('Invoice not found'); return; }
 
-  currentInvoiceId = inv.id;
-  isReadOnly = false;
+    currentInvoiceId = inv.id;
+    isReadOnly = false;
 
-  document.getElementById('inv-number').value = inv.id;
-  document.getElementById('inv-date').value = inv.date;
-  document.getElementById('inv-customer').value = inv.customerName || '';
-  document.getElementById('inv-phone').value = inv.customerPhone || '';
+    document.getElementById('inv-number').value = inv.id;
+    document.getElementById('inv-date').value = inv.date;
+    document.getElementById('inv-customer').value = inv.customerName || '';
+    document.getElementById('inv-phone').value = inv.customerPhone || '';
 
-  // Fill shop details from snapshot or current settings
-  const shop = inv.shopSnapshot || await DB.getSettings();
-  document.getElementById('inv-shop-name').value = shop.shopName || '';
-  document.getElementById('inv-shop-address').value = shop.shopAddress || '';
-  document.getElementById('inv-shop-gst').value = shop.gstNumber || '';
-  document.getElementById('inv-bank-name').textContent = shop.bankName || '—';
-  document.getElementById('inv-acc-holder').textContent = shop.accHolder || '—';
-  document.getElementById('inv-acc-number').textContent = shop.accNumber || '—';
-  document.getElementById('inv-ifsc').textContent = shop.ifsc || '—';
-  document.getElementById('inv-upi-id').textContent = shop.upiId || '—';
-  generateUPIQR(shop.upiId, shop.shopName);
+    // Fill shop details from snapshot or current settings
+    const shop = inv.shopSnapshot || await DB.getSettings();
+    document.getElementById('inv-shop-name').value = shop.shopName || '';
+    document.getElementById('inv-shop-address').value = shop.shopAddress || '';
+    document.getElementById('inv-shop-gst').value = shop.gstNumber || '';
+    document.getElementById('inv-bank-name').textContent = shop.bankName || '—';
+    document.getElementById('inv-acc-holder').textContent = shop.accHolder || '—';
+    document.getElementById('inv-acc-number').textContent = shop.accNumber || '—';
+    document.getElementById('inv-ifsc').textContent = shop.ifsc || '—';
+    document.getElementById('inv-upi-id').textContent = shop.upiId || '—';
+    generateUPIQR(shop.upiId, shop.shopName);
 
-  // Status badge
-  const badge = document.getElementById('inv-status-badge');
-  if (inv.status === 'draft') {
-    badge.className = 'badge badge-draft';
-    badge.textContent = 'DRAFT';
-  } else if (inv.status === 'final') {
-    badge.className = 'badge badge-final';
-    badge.textContent = 'FINAL';
-  } else {
-    badge.className = 'badge badge-cancelled';
-    badge.textContent = 'CANCELLED';
+    // Status badge
+    const badge = document.getElementById('inv-status-badge');
+    if (inv.status === 'draft') {
+      badge.className = 'badge badge-draft';
+      badge.textContent = 'DRAFT';
+    } else if (inv.status === 'final') {
+      badge.className = 'badge badge-final';
+      badge.textContent = 'FINAL';
+    } else {
+      badge.className = 'badge badge-cancelled';
+      badge.textContent = 'CANCELLED';
+    }
+
+    // Items
+    document.getElementById('items-tbody').innerHTML = '';
+    rowCounter = 0;
+    (inv.items || []).forEach(item => addItemRow(item));
+    recalcTotals();
+
+    // Show/hide buttons
+    document.getElementById('btn-save-draft').classList.remove('hidden');
+    document.getElementById('btn-finalise').classList.remove('hidden');
+    document.getElementById('btn-add-row').classList.remove('hidden');
+    document.getElementById('btn-cancel-invoice').classList.add('hidden');
+
+    document.getElementById('inv-date').disabled = false;
+    document.getElementById('inv-customer').disabled = false;
+    document.getElementById('inv-phone').disabled = false;
+
+    if (inv.status !== 'draft') {
+      setReadOnly();
+    }
+  } catch (err) {
+    showError('Failed to load invoice: ' + err.message);
+    console.error(err);
   }
-
-  // Items
-  document.getElementById('items-tbody').innerHTML = '';
-  rowCounter = 0;
-  (inv.items || []).forEach(item => addItemRow(item));
-  recalcTotals();
-
-  // Show/hide buttons
-  document.getElementById('btn-save-draft').classList.remove('hidden');
-  document.getElementById('btn-finalise').classList.remove('hidden');
-  document.getElementById('btn-add-row').classList.remove('hidden');
-  document.getElementById('btn-cancel-invoice').classList.add('hidden');
-
-  document.getElementById('inv-date').disabled = false;
-  document.getElementById('inv-customer').disabled = false;
-  document.getElementById('inv-phone').disabled = false;
-
-  if (inv.status !== 'draft') {
-    setReadOnly();
-  }
+}
 
   // Render print area for final invoices
   if (inv.status === 'final') {
@@ -2498,8 +2616,11 @@ async function loadInvoice(invoiceId) {
 }
 
 function numberToWords(n) {
+  if (isNaN(n) || n === null || n === undefined) return 'Rupees Zero Only';
   n = Math.round(n);
+  if (n < 0) return 'Negative Rupees ' + numberToWords(Math.abs(n)).replace('Rupees ', '');
   if (n === 0) return 'Rupees Zero Only';
+  if (n > 999999999) return 'Rupees Amount Too Large Only';
   const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
     'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen',
     'Seventeen','Eighteen','Nineteen'];
@@ -2910,22 +3031,27 @@ function cancelInvoiceAction(id) {
 
 // ===== BACKUP / RESTORE =====
 async function exportBackup() {
-  const data = {
-    exportedAt: new Date().toISOString(),
-    version: '2.0',
-    invoices: await DB.getInvoices(),
-    items: await DB.getItems(),
-    settings: await DB.getSettings(),
-    counter: await DB.getCounter()
-  };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `LocalInvoice-backup-${todayISO()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('Backup exported!');
+  try {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      version: '2.0',
+      invoices: await DB.getInvoices(),
+      items: await DB.getItems(),
+      settings: await DB.getSettings(),
+      counter: await DB.getCounter()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `LocalInvoice-backup-${todayISO()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Backup exported!');
+  } catch (err) {
+    showError('Failed to export backup: ' + err.message);
+    console.error(err);
+  }
 }
 
 async function importBackup(file) {
@@ -2939,20 +3065,30 @@ async function importBackup(file) {
       showConfirm('Import Backup',
         `Import ${invCount} invoices and ${itemCount} items? Current data will be replaced.`,
         async () => {
-          await DB.saveInvoices(data.invoices || []);
-          await DB.saveItems(data.items || []);
-          if (data.settings) {
-            await DB.saveSettings(data.settings);
-            li_settings_cache = data.settings;
+          try {
+            await DB.saveInvoices(data.invoices || []);
+            await DB.saveItems(data.items || []);
+            if (data.settings) {
+              await DB.saveSettings(data.settings);
+              li_settings_cache = data.settings;
+            }
+            if (data.counter !== undefined) await DB.setCounter(parseInt(data.counter) || 0);
+            showToast('Backup restored!');
+            setTimeout(() => location.reload(), 800);
+          } catch (dbErr) {
+            showError('Failed to restore data: ' + dbErr.message);
+            console.error(dbErr);
           }
-          if (data.counter) await DB.setCounter(parseInt(data.counter));
-          showToast('Backup restored!');
-          setTimeout(() => location.reload(), 800);
         }
       );
     } catch(err) {
-      showToast('Invalid backup file.');
+      showToast('Invalid backup file structure.');
+      console.error(err);
     }
+  };
+  reader.onerror = (err) => {
+    showToast('Failed to read backup file.');
+    console.error(err);
   };
   reader.readAsText(file);
   // Reset file input
@@ -2961,63 +3097,83 @@ async function importBackup(file) {
 
 // ===== SETTINGS =====
 async function loadSettings() {
-  const s = await DB.getSettings();
-  document.getElementById('set-shop-name').value = s.shopName || '';
-  document.getElementById('set-shop-address').value = s.shopAddress || '';
-  document.getElementById('set-gst-number').value = s.gstNumber || '';
-  document.getElementById('set-shop-phone').value = s.shopPhone || '';
-  document.getElementById('set-shop-email').value = s.shopEmail || '';
-  document.getElementById('set-shop-website').value = s.shopWebsite || '';
-  document.getElementById('set-upi-id').value = s.upiId || '';
-  document.getElementById('set-bank-name').value = s.bankName || '';
-  document.getElementById('set-acc-number').value = s.accNumber || '';
-  document.getElementById('set-ifsc').value = s.ifsc || '';
-  document.getElementById('set-acc-holder').value = s.accHolder || '';
-  document.getElementById('set-invoice-prefix').value = s.invoicePrefix || '';
-  document.getElementById('settings-success').style.display = 'none';
+  try {
+    const s = await DB.getSettings();
+    document.getElementById('set-shop-name').value = s.shopName || '';
+    document.getElementById('set-shop-address').value = s.shopAddress || '';
+    document.getElementById('set-gst-number').value = s.gstNumber || '';
+    document.getElementById('set-shop-phone').value = s.shopPhone || '';
+    document.getElementById('set-shop-email').value = s.shopEmail || '';
+    document.getElementById('set-shop-website').value = s.shopWebsite || '';
+    document.getElementById('set-upi-id').value = s.upiId || '';
+    document.getElementById('set-bank-name').value = s.bankName || '';
+    document.getElementById('set-acc-number').value = s.accNumber || '';
+    document.getElementById('set-ifsc').value = s.ifsc || '';
+    document.getElementById('set-acc-holder').value = s.accHolder || '';
+    document.getElementById('set-invoice-prefix').value = s.invoicePrefix || '';
+    document.getElementById('settings-success').style.display = 'none';
+  } catch (err) {
+    showError('Failed to load settings: ' + err.message);
+    console.error(err);
+  }
 }
 
 async function saveSettings() {
-  const settings = {
-    shopName: document.getElementById('set-shop-name').value.trim(),
-    shopAddress: document.getElementById('set-shop-address').value.trim(),
-    gstNumber: document.getElementById('set-gst-number').value.trim(),
-    shopPhone: document.getElementById('set-shop-phone').value.trim(),
-    shopEmail: document.getElementById('set-shop-email').value.trim(),
-    shopWebsite: document.getElementById('set-shop-website').value.trim(),
-    upiId: document.getElementById('set-upi-id').value.trim(),
-    bankName: document.getElementById('set-bank-name').value.trim(),
-    accNumber: document.getElementById('set-acc-number').value.trim(),
-    ifsc: document.getElementById('set-ifsc').value.trim(),
-    accHolder: document.getElementById('set-acc-holder').value.trim(),
-    invoicePrefix: document.getElementById('set-invoice-prefix').value.trim()
-  };
-  await DB.saveSettings(settings);
-  li_settings_cache = settings;
-  const msg = document.getElementById('settings-success');
-  msg.style.display = 'block';
-  setTimeout(() => msg.style.display = 'none', 3000);
-  showToast('Settings saved!');
+  if (isSubmitting) return;
+  isSubmitting = true;
+  try {
+    const settings = {
+      shopName: document.getElementById('set-shop-name').value.trim(),
+      shopAddress: document.getElementById('set-shop-address').value.trim(),
+      gstNumber: document.getElementById('set-gst-number').value.trim(),
+      shopPhone: document.getElementById('set-shop-phone').value.trim(),
+      shopEmail: document.getElementById('set-shop-email').value.trim(),
+      shopWebsite: document.getElementById('set-shop-website').value.trim(),
+      upiId: document.getElementById('set-upi-id').value.trim(),
+      bankName: document.getElementById('set-bank-name').value.trim(),
+      accNumber: document.getElementById('set-acc-number').value.trim(),
+      ifsc: document.getElementById('set-ifsc').value.trim(),
+      accHolder: document.getElementById('set-acc-holder').value.trim(),
+      invoicePrefix: document.getElementById('set-invoice-prefix').value.trim()
+    };
+    await DB.saveSettings(settings);
+    li_settings_cache = settings;
+    const msg = document.getElementById('settings-success');
+    if (msg) {
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 3000);
+    }
+    showToast('Settings saved!');
+  } catch (err) {
+    showError('Failed to save settings: ' + err.message);
+    console.error(err);
+  } finally {
+    isSubmitting = false;
+  }
 }
 
 // ===== KEYBOARD SHORTCUTS =====
 document.addEventListener('keydown', async (e) => {
-  if (e.ctrlKey && e.key === 's') {
-    e.preventDefault();
-    if (currentPage === 'new' && !isReadOnly) saveDraft();
-  }
-  if (e.ctrlKey && e.key === 'p') {
-    e.preventDefault();
-    if (currentPage === 'new') {
-      if (currentInvoiceId) {
-        const invoices = await DB.getInvoices();
-        const inv = invoices.find(i => i.id === currentInvoiceId);
-        if (inv) {
-          await renderPrintArea(inv);
-          setTimeout(() => window.print(), 300);
+  try {
+    if (e.ctrlKey && e.key === 's') {
+      e.preventDefault();
+      if (currentPage === 'new' && !isReadOnly) saveDraft();
+    }
+    if (e.ctrlKey && e.key === 'p') {
+      e.preventDefault();
+      if (currentPage === 'new') {
+        if (currentInvoiceId) {
+          const invoices = await DB.getInvoices();
+          const inv = invoices.find(i => i.id === currentInvoiceId);
+          if (inv) {
+            await renderPrintArea(inv);
+            setTimeout(() => window.print(), 300);
+          }
         }
       }
     }
+  } catch (err) {
+    console.error('Shortcut trigger failed:', err);
   }
 });
 
@@ -3027,75 +3183,85 @@ document.getElementById('search-inventory').addEventListener('input', function()
 });
 
 async function renderInventory(query = '') {
-  const tbody = document.getElementById('inventory-tbody');
-  let items = await DB.getItems();
-  
-  if (query) {
-    const q = query.toLowerCase().trim();
-    items = items.filter(i => i.name.toLowerCase().includes(q));
+  try {
+    const tbody = document.getElementById('inventory-tbody');
+    let items = await DB.getItems();
+    
+    if (query) {
+      const q = query.toLowerCase().trim();
+      items = items.filter(i => i.name.toLowerCase().includes(q));
+    }
+    
+    const gstFilter = document.getElementById('filter-gst').value;
+    if (gstFilter !== '') {
+      items = items.filter(i => i.gstPercent === parseInt(gstFilter));
+    }
+    
+    items.sort((a,b) => a.name.localeCompare(b.name));
+    
+    if (items.length === 0) {
+      tbody.innerHTML = `<tr><td class="auto-style-87" colspan="6">No items found.</td></tr>`;
+      return;
+    }
+    
+    tbody.innerHTML = items.map((item, idx) => `
+      <tr class="inv-row">
+        <td class="auto-style-26">${idx + 1}</td>
+        <td class="auto-style-27">${item.name}</td>
+        <td>${item.hsn || '—'}</td>
+        <td>${item.gstPercent}%</td>
+        <td>${item.unit || '—'}</td>
+        <td>${item.stock !== undefined ? item.stock : 0}</td>
+        <td class="auto-style-29">
+          <button class="auto-style-88 btn btn-sm btn-outline" onclick="openItemModal('${encodeURIComponent(item.name).replace(/\'/g, "%27")}')">Edit</button>
+          <button class="auto-style-89 btn btn-sm btn-outline" onclick="deleteItem('${encodeURIComponent(item.name).replace(/\'/g, "%27")}')">Del</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    showToast('Failed to load inventory: ' + err.message);
+    console.error(err);
   }
-  
-  const gstFilter = document.getElementById('filter-gst').value;
-  if (gstFilter !== '') {
-    items = items.filter(i => i.gstPercent === parseInt(gstFilter));
-  }
-  
-  items.sort((a,b) => a.name.localeCompare(b.name));
-  
-  if (items.length === 0) {
-    tbody.innerHTML = `<tr><td class="auto-style-87" colspan="6">No items found.</td></tr>`;
-    return;
-  }
-  
-  tbody.innerHTML = items.map((item, idx) => `
-    <tr class="inv-row">
-      <td class="auto-style-26">${idx + 1}</td>
-      <td class="auto-style-27">${item.name}</td>
-      <td>${item.hsn || '—'}</td>
-      <td>${item.gstPercent}%</td>
-      <td>${item.unit || '—'}</td>
-      <td>${item.stock !== undefined ? item.stock : 0}</td>
-      <td class="auto-style-29">
-        <button class="auto-style-88 btn btn-sm btn-outline" onclick="openItemModal('${encodeURIComponent(item.name).replace(/\'/g, "%27")}')">Edit</button>
-        <button class="auto-style-89 btn btn-sm btn-outline" onclick="deleteItem('${encodeURIComponent(item.name).replace(/\'/g, "%27")}')">Del</button>
-      </td>
-    </tr>
-  `).join('');
 }
 
 async function openItemModal(encodedName = null) {
-  const modal = document.getElementById('item-modal');
-  const title = document.getElementById('item-modal-title');
-  const inpName = document.getElementById('edit-item-name');
-  const inpHsn = document.getElementById('edit-item-hsn');
-  const inpGst = document.getElementById('edit-item-gst');
-  const inpUnit = document.getElementById('edit-item-unit');
-  const inpOrig = document.getElementById('edit-item-original-name');
-  
-  if (encodedName) {
-    const name = decodeURIComponent(encodedName);
-    const items = await DB.getItems();
-    const item = items.find(i => i.name === name);
-    if(item) {
-      title.textContent = 'Edit Item';
-      inpName.value = item.name;
-      inpHsn.value = item.hsn || '';
-      inpGst.value = item.gstPercent || 0;
-      inpUnit.value = item.unit || 'pcs';
-      document.getElementById('edit-item-stock').value = item.stock !== undefined ? item.stock : 0;
-      inpOrig.value = item.name;
+  try {
+    const modal = document.getElementById('item-modal');
+    const title = document.getElementById('item-modal-title');
+    const inpName = document.getElementById('edit-item-name');
+    const inpHsn = document.getElementById('edit-item-hsn');
+    const inpGst = document.getElementById('edit-item-gst');
+    const inpUnit = document.getElementById('edit-item-unit');
+    const inpOrig = document.getElementById('edit-item-original-name');
+    
+    if (encodedName) {
+      const name = decodeURIComponent(encodedName);
+      const items = await DB.getItems();
+      const item = items.find(i => i.name === name);
+      if(item) {
+        title.textContent = 'Edit Item';
+        inpName.value = item.name;
+        inpHsn.value = item.hsn || '';
+        inpGst.value = item.gstPercent || 0;
+        inpUnit.value = item.unit || 'pcs';
+        document.getElementById('edit-item-stock').value = item.stock !== undefined ? item.stock : 0;
+        inpOrig.value = item.name;
+      }
+    } else {
+      title.textContent = 'Add New Item';
+      inpName.value = '';
+      inpHsn.value = '';
+      inpGst.value = '0';
+      inpUnit.value = 'pcs';
+      document.getElementById('edit-item-stock').value = '0';
+      inpOrig.value = '';
     }
-  } else {
-    title.textContent = 'Add New Item';
-    inpName.value = '';
-    inpHsn.value = '';
-    inpGst.value = '0';
-    inpUnit.value = 'pcs';
-    document.getElementById('edit-item-stock').value = '0';
-    inpOrig.value = '';
+    
+    modal.classList.add('show');
+  } catch (err) {
+    showToast('Failed to open modal: ' + err.message);
+    console.error(err);
   }
-  
-  modal.classList.add('show');
 }
 
 function closeItemModal() {
@@ -3103,6 +3269,7 @@ function closeItemModal() {
 }
 
 async function saveItemFromModal() {
+  if (isSubmitting) return;
   const name = document.getElementById('edit-item-name').value.trim();
   const hsn = document.getElementById('edit-item-hsn').value.trim();
   const gst = parseInt(document.getElementById('edit-item-gst').value) || 0;
@@ -3115,39 +3282,54 @@ async function saveItemFromModal() {
     return;
   }
   
-  let items = await DB.getItems();
-  
-  if (origName) {
-    const idx = items.findIndex(i => i.name === origName);
-    if(idx > -1) {
-      if(name.toLowerCase() !== origName.toLowerCase() && items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
-        showToast('Another item with this name already exists!');
+  isSubmitting = true;
+  try {
+    let items = await DB.getItems();
+    
+    if (origName) {
+      const idx = items.findIndex(i => i.name === origName);
+      if(idx > -1) {
+        if(name.toLowerCase() !== origName.toLowerCase() && items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
+          showToast('Another item with this name already exists!');
+          isSubmitting = false;
+          return;
+        }
+        items[idx] = { name: titleCase(name), hsn, gstPercent: gst, unit, stock };
+      }
+    } else {
+      if(items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
+        showToast('Item already exists!');
+        isSubmitting = false;
         return;
       }
-      items[idx] = { name: titleCase(name), hsn, gstPercent: gst, unit, stock };
+      items.push({ name: titleCase(name), hsn, gstPercent: gst, unit, stock });
     }
-  } else {
-    if(items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
-      showToast('Item already exists!');
-      return;
-    }
-    items.push({ name: titleCase(name), hsn, gstPercent: gst, unit, stock });
+    
+    await DB.saveItems(items);
+    closeItemModal();
+    showToast('Item saved successfully!');
+    renderInventory(document.getElementById('search-inventory').value);
+  } catch (err) {
+    showToast('Failed to save item: ' + err.message);
+    console.error(err);
+  } finally {
+    isSubmitting = false;
   }
-  
-  await DB.saveItems(items);
-  closeItemModal();
-  showToast('Item saved successfully!');
-  renderInventory(document.getElementById('search-inventory').value);
 }
 
 async function deleteItem(encodedName) {
   const name = decodeURIComponent(encodedName);
   showConfirm('Delete Item', `Are you sure you want to delete "${name}"?`, async () => {
-    let items = await DB.getItems();
-    items = items.filter(i => i.name !== name);
-    await DB.saveItems(items);
-    showToast('Item deleted!');
-    renderInventory(document.getElementById('search-inventory').value);
+    try {
+      let items = await DB.getItems();
+      items = items.filter(i => i.name !== name);
+      await DB.saveItems(items);
+      showToast('Item deleted!');
+      renderInventory(document.getElementById('search-inventory').value);
+    } catch (err) {
+      showToast('Failed to delete item: ' + err.message);
+      console.error(err);
+    }
   });
 }
 

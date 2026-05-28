@@ -1,9 +1,12 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
-// Set custom user data path to avoid permission issues with Windows AppData folder
-const userDataPath = path.join(app.getAppPath(), '.userdata');
-app.setPath('userData', userDataPath);
+// Set custom user data path in development to avoid pollution,
+// but use standard system paths in production (packaged) to avoid permission issues.
+if (!app.isPackaged) {
+  const userDataPath = path.join(app.getAppPath(), '.userdata');
+  app.setPath('userData', userDataPath);
+}
 
 function createWindow () {
   const win = new BrowserWindow({
