@@ -89,17 +89,24 @@ jobs:
           fi
         shell: bash
 
+      - name: Verify Java Version
+        run: |
+          java -version
+          javac -version
+          echo "JAVA_HOME is $JAVA_HOME"
+        shell: bash
+
       - name: Build Android Release APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease -Dorg.gradle.java.home=$JAVA_HOME
         shell: bash
 
       - name: Build Android Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug -Dorg.gradle.java.home=$JAVA_HOME
         shell: bash
 
       - name: Publish Android Release
