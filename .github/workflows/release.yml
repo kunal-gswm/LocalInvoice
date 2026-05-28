@@ -1,0 +1,102 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # --- BUILD DESKTOP APP (Windows .exe) ---
+      - name: Build Desktop (Windows .exe)
+        run: npm run dist -- --win
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- BUILD MOBILE APP (Android .apk) ---
+      - name: Build Web Assets for Mobile
+        run: npm run build:mobile
+
+      - name: Sync Capacitor
+        run: npx cap sync
+
+      - name: Set up Android Keystore
+        run: |
+          if [ ! -z "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "Decoding Android Keystore..."
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/localinvoice-release.keystore
+            echo "Creating local.properties..."
+            cat <<EOF > android/local.properties
+          sdk.dir=$ANDROID_HOME
+          RELEASE_STORE_FILE=localinvoice-release.keystore
+          RELEASE_STORE_PASSWORD=${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS=${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}
+          EOF
+          else
+            echo "No keystore secret provided. Creating basic local.properties..."
+            echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          fi
+        shell: bash
+
+      - name: Build Android Release APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+        shell: bash
+
+      - name: Build Android Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug
+        shell: bash
+
+      # --- PREPARE ASSETS ---
+      - name: Prepare Release Assets
+        run: |
+          mkdir release-artifacts
+          # Copy Windows Installer
+          cp dist/LocalInvoice\ Setup\ *.exe release-artifacts/LocalInvoice-Setup.exe || echo "Windows build missing"
+          # Copy Release APK
+          cp android/app/build/outputs/apk/release/LocalInvoice.apk release-artifacts/LocalInvoice-Release.apk || echo "Release APK missing"
+          # Copy Debug APK
+          cp android/app/build/outputs/apk/debug/app-debug.apk release-artifacts/LocalInvoice-Debug.apk || echo "Debug APK missing"
+        shell: bash
+
+      # --- PUBLISH GITHUB RELEASE ---
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/LocalInvoice-Setup.exe
+            release-artifacts/LocalInvoice-Release.apk
+            release-artifacts/LocalInvoice-Debug.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
