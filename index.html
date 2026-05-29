@@ -2077,7 +2077,6 @@
           <option value="">All GST Rates</option>
           <option value="0">0% (Exempt)</option>
           <option value="5">5%</option>
-          <option value="12">12%</option>
           <option value="18">18%</option>
         </select>
       </div>
@@ -2640,7 +2639,25 @@
         // Force overwrite to update items with proper HSN codes and units
         await DB.saveItems(SEED_ITEMS);
         localStorage.setItem('li_seed_260_hsn', 'true');
+        items = SEED_ITEMS;
       }
+      
+      if (!localStorage.getItem('li_seed_gst_12_removed')) {
+        let updated = false;
+        items = items.map(item => {
+          if (item.gstPercent === 12) {
+            updated = true;
+            const seedItem = SEED_ITEMS.find(s => s.name === item.name);
+            item.gstPercent = seedItem ? seedItem.gstPercent : 18;
+          }
+          return item;
+        });
+        if (updated) {
+          await DB.saveItems(items);
+        }
+        localStorage.setItem('li_seed_gst_12_removed', 'true');
+      }
+
       const s = await DB.getSettings();
       li_settings_cache = s;
 
