@@ -1211,10 +1211,6 @@ nav button.active {
         <label for="set-invoice-prefix">Invoice Prefix</label>
         <input type="text" id="set-invoice-prefix" placeholder="e.g. PBD, LI, INV" maxlength="6">
       </div>
-      <div class="form-group" style="grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 8px; margin-top: 8px;">
-        <input type="checkbox" id="set-digital-stamp" style="width: auto; height: auto;">
-        <label for="set-digital-stamp" style="text-transform: none; font-size: 0.95rem; font-weight: 600; cursor: pointer; color: var(--gray-700);">Enable Digital "PAID" Stamp on Invoices</label>
-      </div>
     </div>
     <div class="btn-group">
       <button class="btn btn-primary btn-lg" onclick="saveSettings()">Save Settings</button>
@@ -2682,51 +2678,6 @@ async function renderPrintArea(inv) {
       .print-items-table tbody tr:nth-child(odd) td { background: #ffffff; }
       .print-items-table tbody tr:nth-child(even) td { background: #f7f7f7; }
       .print-items-table tbody tr td { border: 1px solid #1a1a2e !important; padding: 6px 10px; }
-
-      .digital-stamp {
-        border: 3px double #27ae60;
-        color: #27ae60;
-        font-family: 'Segoe UI', Arial, sans-serif;
-        font-size: 8pt;
-        font-weight: 800;
-        text-transform: uppercase;
-        text-align: center;
-        padding: 4px;
-        width: 85px;
-        height: 85px;
-        border-radius: 50%;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        transform: rotate(-12deg);
-        opacity: 0.85;
-        margin: -65px 40px 10px auto;
-        position: relative;
-        z-index: 10;
-        background: rgba(255,255,255,0.85);
-        box-sizing: border-box;
-      }
-      .digital-stamp .stamp-title {
-        font-size: 5pt;
-        border-bottom: 1px solid #27ae60;
-        width: 90%;
-        padding-bottom: 1px;
-        margin-bottom: 2px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .digital-stamp .stamp-text {
-        font-size: 11pt;
-        letter-spacing: 0.5px;
-        line-height: 1;
-        font-weight: 900;
-      }
-      .digital-stamp .stamp-date {
-        font-size: 5pt;
-        margin-top: 2px;
-      }
     </style>
     <table class="auto-style-51 print-items-table">
       <thead>
@@ -2804,13 +2755,6 @@ async function renderPrintArea(inv) {
       </div>
       <div class="auto-style-81"></div>
       <div class="auto-style-82">
-        ${inv.status === 'final' && (shop.digitalStamp !== false) ? `
-        <div class="digital-stamp">
-          <div class="stamp-title">${(shop.shopName || 'AUTHORIZED').toUpperCase()}</div>
-          <div class="stamp-text">PAID</div>
-          <div class="stamp-date">${formatDate(inv.date)}</div>
-        </div>
-        ` : ''}
         <div class="auto-style-83"></div>
         <div class="auto-style-84">Authorised Sign</div>
       </div>
@@ -3106,7 +3050,6 @@ async function loadSettings() {
     document.getElementById('set-ifsc').value = s.ifsc || '';
     document.getElementById('set-acc-holder').value = s.accHolder || '';
     document.getElementById('set-invoice-prefix').value = s.invoicePrefix || '';
-    document.getElementById('set-digital-stamp').checked = s.digitalStamp !== false;
     document.getElementById('settings-success').style.display = 'none';
   } catch (err) {
     showError('Failed to load settings: ' + err.message);
@@ -3130,8 +3073,7 @@ async function saveSettings() {
       accNumber: document.getElementById('set-acc-number').value.trim(),
       ifsc: document.getElementById('set-ifsc').value.trim(),
       accHolder: document.getElementById('set-acc-holder').value.trim(),
-      invoicePrefix: document.getElementById('set-invoice-prefix').value.trim(),
-      digitalStamp: document.getElementById('set-digital-stamp').checked
+      invoicePrefix: document.getElementById('set-invoice-prefix').value.trim()
     };
     await DB.saveSettings(settings);
     li_settings_cache = settings;
