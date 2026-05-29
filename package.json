@@ -1,6 +1,6 @@
 {
   "name": "localinvoice",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Offline GST Billing Desktop Application",
   "main": "main.js",
   "scripts": {
