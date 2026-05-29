@@ -1169,7 +1169,6 @@ nav button.active {
             <th class="auto-style-13">HSN</th>
             <th class="auto-style-14">GST%</th>
             <th class="auto-style-13">Unit</th>
-            <th class="auto-style-13">Stock</th>
             <th class="auto-style-15">Actions</th>
           </tr>
         </thead>
@@ -1290,10 +1289,6 @@ nav button.active {
       <div class="form-group">
         <label for="edit-item-unit">Unit</label>
         <input class="auto-style-20" type="text" id="edit-item-unit" placeholder="e.g. pcs, box">
-      </div>
-      <div class="form-group">
-        <label for="edit-item-stock">Stock Quantity</label>
-        <input class="auto-style-20" type="number" id="edit-item-stock" placeholder="e.g. 100" min="0">
       </div>
     </div>
     <div class="auto-style-22 btn-group">
@@ -2508,24 +2503,23 @@ async function finaliseInvoice() {
 
 async function saveNewItems(items) {
   const savedItems = await DB.getItems();
+  let updated = false;
   items.forEach(item => {
     const key = item.name.toLowerCase().trim();
     const idx = savedItems.findIndex(i => i.name.toLowerCase() === key);
     if (idx === -1 && item.name) {
-      const initialStock = 0 - (parseFloat(item.quantity) || 0);
       savedItems.push({ 
         name: titleCase(item.name), 
         gstPercent: item.gstPercent, 
         hsn: item.hsn, 
-        unit: item.unit,
-        stock: initialStock
+        unit: item.unit
       });
-    } else if (idx > -1) {
-      const currentStock = savedItems[idx].stock !== undefined ? parseFloat(savedItems[idx].stock) : 0;
-      savedItems[idx].stock = currentStock - (parseFloat(item.quantity) || 0);
+      updated = true;
     }
   });
-  await DB.saveItems(savedItems);
+  if (updated) {
+    await DB.saveItems(savedItems);
+  }
 }
 
 async function setReadOnly() {
@@ -3271,7 +3265,6 @@ async function renderInventory(query = '') {
         <td>${item.hsn || '—'}</td>
         <td>${item.gstPercent}%</td>
         <td>${item.unit || '—'}</td>
-        <td>${item.stock !== undefined ? item.stock : 0}</td>
         <td class="auto-style-29">
           <button class="auto-style-88 btn btn-sm btn-outline" onclick="openItemModal('${encodeURIComponent(item.name).replace(/\'/g, "%27")}')">Edit</button>
           <button class="auto-style-89 btn btn-sm btn-outline" onclick="deleteItem('${encodeURIComponent(item.name).replace(/\'/g, "%27")}')">Del</button>
@@ -3304,7 +3297,6 @@ async function openItemModal(encodedName = null) {
         inpHsn.value = item.hsn || '';
         inpGst.value = item.gstPercent || 0;
         inpUnit.value = item.unit || 'pcs';
-        document.getElementById('edit-item-stock').value = item.stock !== undefined ? item.stock : 0;
         inpOrig.value = item.name;
       }
     } else {
@@ -3313,7 +3305,6 @@ async function openItemModal(encodedName = null) {
       inpHsn.value = '';
       inpGst.value = '0';
       inpUnit.value = 'pcs';
-      document.getElementById('edit-item-stock').value = '0';
       inpOrig.value = '';
     }
     
@@ -3334,7 +3325,6 @@ async function saveItemFromModal() {
   const hsn = document.getElementById('edit-item-hsn').value.trim();
   const gst = parseInt(document.getElementById('edit-item-gst').value) || 0;
   const unit = document.getElementById('edit-item-unit').value.trim();
-  const stock = parseInt(document.getElementById('edit-item-stock').value) || 0;
   const origName = document.getElementById('edit-item-original-name').value;
   
   if(!name) {
@@ -3354,7 +3344,7 @@ async function saveItemFromModal() {
           isSubmitting = false;
           return;
         }
-        items[idx] = { name: titleCase(name), hsn, gstPercent: gst, unit, stock };
+        items[idx] = { name: titleCase(name), hsn, gstPercent: gst, unit };
       }
     } else {
       if(items.some(i => i.name.toLowerCase() === name.toLowerCase())) {
@@ -3362,7 +3352,7 @@ async function saveItemFromModal() {
         isSubmitting = false;
         return;
       }
-      items.push({ name: titleCase(name), hsn, gstPercent: gst, unit, stock });
+      items.push({ name: titleCase(name), hsn, gstPercent: gst, unit });
     }
     
     await DB.saveItems(items);
