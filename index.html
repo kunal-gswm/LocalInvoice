@@ -2603,15 +2603,14 @@ async function loadInvoice(invoiceId) {
     if (inv.status !== 'draft') {
       setReadOnly();
     }
+
+    // Render print area for final invoices
+    if (inv.status === 'final') {
+      await renderPrintArea(inv);
+    }
   } catch (err) {
     showError('Failed to load invoice: ' + err.message);
     console.error(err);
-  }
-}
-
-  // Render print area for final invoices
-  if (inv.status === 'final') {
-    await renderPrintArea(inv);
   }
 }
 
