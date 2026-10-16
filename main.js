@@ -1,12 +1,26 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
-// Set custom user data path in development to avoid pollution,
-// but use standard system paths in production (packaged) to avoid permission issues.
-if (!app.isPackaged) {
-  const userDataPath = path.join(app.getAppPath(), '.userdata');
-  app.setPath('userData', userDataPath);
-}
+// Single instance lock to prevent multi-instance LevelDB collisions
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const windows = BrowserWindow.getAllWindows();
+    if (windows.length > 0) {
+      const win = windows[0];
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+
+  // Set custom user data path in development to avoid pollution,
+  // but use standard system paths in production (packaged) to avoid permission issues.
+  if (!app.isPackaged) {
+    const userDataPath = path.join(app.getAppPath(), '.userdata');
+    app.setPath('userData', userDataPath);
+  }
 
 function createWindow () {
   const win = new BrowserWindow({
@@ -77,3 +91,5 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+}
+

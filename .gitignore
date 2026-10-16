@@ -11,6 +11,7 @@ node_modules/
 *.local
 *.bak
 *.tmp
+test/output_pdfs/
 
 # Mobile build folder
 www/

@@ -425,6 +425,18 @@ test('TEST 9: DB.nextInvoiceNumber generates monotonic collision-free numbers', 
 
   const next2 = await DB.nextInvoiceNumber();
   assert.strictEqual(next2, 'PBD-0005', 'Consecutive call must advance monotonically');
+
+  // Concurrency check: Promise.all must produce distinct monotonic IDs without collisions
+  const concurrent = await Promise.all([
+    DB.nextInvoiceNumber(),
+    DB.nextInvoiceNumber(),
+    DB.nextInvoiceNumber()
+  ]);
+  assert.deepStrictEqual(
+    concurrent,
+    ['PBD-0006', 'PBD-0007', 'PBD-0008'],
+    'Concurrent nextInvoiceNumber calls must be serialized without collisions or duplicates'
+  );
 });
 
 // ===== TEST 10: ELECTRON SECURITY CONFIGURATION (DEF-08) =====

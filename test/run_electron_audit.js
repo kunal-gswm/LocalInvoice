@@ -43,10 +43,20 @@ app.whenReady().then(async () => {
   await mainWindow.loadFile(indexPath);
 
   const results = [];
+  const pdfOutDir = path.resolve(__dirname, 'output_pdfs');
+  if (!fs.existsSync(pdfOutDir)) fs.mkdirSync(pdfOutDir, { recursive: true });
 
-  async function runRendererTest(name, fnString) {
+  async function runRendererTest(name, fnString, saveFileName) {
     try {
       const res = await mainWindow.webContents.executeJavaScript(`(${fnString})()`);
+      if (saveFileName && res && res.base64) {
+        const filePath = path.join(pdfOutDir, saveFileName);
+        fs.writeFileSync(filePath, Buffer.from(res.base64, 'base64'));
+        const stat = fs.statSync(filePath);
+        res.savedPath = filePath;
+        res.diskBytes = stat.size;
+        delete res.base64;
+      }
       results.push({ name, pass: true, detail: res });
       console.log(`✔ [PASS] ${name}`);
       if (res) console.log(`    Detail: ${typeof res === 'object' ? JSON.stringify(res) : res}`);
@@ -169,6 +179,10 @@ app.whenReady().then(async () => {
     el.style.display = 'block';
     await renderPrintArea(inv);
 
+    const qrEl = document.getElementById('qr-print');
+    const qrChild = qrEl && (qrEl.querySelector('canvas') || qrEl.querySelector('img'));
+    if (!qrChild) throw new Error('QR code failed to render inside #qr-print');
+
     const canvas = await html2canvas(el, { scale: 1.5, width: 794, windowWidth: 794, backgroundColor: '#ffffff' });
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
@@ -182,13 +196,14 @@ app.whenReady().then(async () => {
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, imgH, undefined, 'FAST');
     const pageCount = pdf.internal.getNumberOfPages();
     const pdfBytes = pdf.output('arraybuffer').byteLength;
+    const base64 = pdf.output('datauristring').split(',')[1];
     el.style.display = 'none';
 
     if (pageCount !== 1) throw new Error('Expected 1 page for 1-item invoice, got ' + pageCount);
     if (pdfBytes < 1000) throw new Error('Generated PDF byte length is suspiciously small: ' + pdfBytes);
 
-    return { pageCount, canvasHeight: canvas.height, pdfBytes, slicesCount: slices.length };
-  }`);
+    return { pageCount, canvasHeight: canvas.height, pdfBytes, slicesCount: slices.length, base64 };
+  }`, 'invoice_1.pdf');
 
   await runRendererTest('2.2: Real PDF Generation (10 Items - Near Single-Page Boundary)', `async () => {
     const items = [];
@@ -249,10 +264,11 @@ app.whenReady().then(async () => {
 
     const pageCount = pdf.internal.getNumberOfPages();
     const pdfBytes = pdf.output('arraybuffer').byteLength;
+    const base64 = pdf.output('datauristring').split(',')[1];
     el.style.display = 'none';
 
-    return { pageCount, slicesCount: slices.length, totalHeight: canvas.height, pdfBytes };
-  }`);
+    return { pageCount, slicesCount: slices.length, totalHeight: canvas.height, pdfBytes, base64 };
+  }`, 'invoice_10.pdf');
 
   await runRendererTest('2.3: Real PDF Generation (20 Items - Clean Page Split Across Row Seams)', `async () => {
     const items = [];
@@ -316,13 +332,14 @@ app.whenReady().then(async () => {
 
     const pageCount = pdf.internal.getNumberOfPages();
     const pdfBytes = pdf.output('arraybuffer').byteLength;
+    const base64 = pdf.output('datauristring').split(',')[1];
     el.style.display = 'none';
 
     if (pageCount < 2) throw new Error('Expected at least 2 pages for 20 items, got ' + pageCount);
     if (renderedH !== canvas.height) throw new Error('Total rendered height (' + renderedH + ') does not match canvas height (' + canvas.height + ')');
 
-    return { pageCount, slices, totalHeight: canvas.height, pdfBytes };
-  }`);
+    return { pageCount, slices, totalHeight: canvas.height, pdfBytes, base64 };
+  }`, 'invoice_20.pdf');
 
   await runRendererTest('2.4: Real PDF Generation (50 Items - Stress Test & Grand Total Verification)', `async () => {
     const items = [];
@@ -383,12 +400,13 @@ app.whenReady().then(async () => {
 
     const pageCount = pdf.internal.getNumberOfPages();
     const pdfBytes = pdf.output('arraybuffer').byteLength;
+    const base64 = pdf.output('datauristring').split(',')[1];
     el.style.display = 'none';
 
     if (pageCount < 3) throw new Error('Expected at least 3 pages for 50 items, got ' + pageCount);
 
-    return { pageCount, slicesCount: slices.length, totalCanvasHeight: canvas.height, grandTotal: totals.grandTotal, pdfBytes };
-  }`);
+    return { pageCount, slicesCount: slices.length, totalCanvasHeight: canvas.height, grandTotal: totals.grandTotal, pdfBytes, base64 };
+  }`, 'invoice_50.pdf');
 
   await runRendererTest('2.5: Real PDF Generation (100 Items - Mega Invoice Boundary Stability)', `async () => {
     const items = [];
@@ -425,6 +443,10 @@ app.whenReady().then(async () => {
     el.style.display = 'block';
     await renderPrintArea(inv);
 
+    if (!el.innerText.includes('सुपर फाइन स्टेशनरी')) {
+      throw new Error('Hindi Unicode text missing from rendered print area table!');
+    }
+
     const canvas = await html2canvas(el, { scale: 1.0, width: 794, windowWidth: 794, backgroundColor: '#ffffff' });
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
@@ -452,12 +474,13 @@ app.whenReady().then(async () => {
 
     const pageCount = pdf.internal.getNumberOfPages();
     const pdfBytes = pdf.output('arraybuffer').byteLength;
+    const base64 = pdf.output('datauristring').split(',')[1];
     el.style.display = 'none';
 
     if (pageCount < 4) throw new Error('Expected at least 4 pages for 100 items, got ' + pageCount);
 
-    return { pageCount, slicesCount: slices.length, totalCanvasHeight: canvas.height, grandTotal: totals.grandTotal, pdfBytes };
-  }`);
+    return { pageCount, slicesCount: slices.length, totalCanvasHeight: canvas.height, grandTotal: totals.grandTotal, pdfBytes, base64 };
+  }`, 'invoice_100.pdf');
 
   // ===== TEST SUITE 3: INVOICE HISTORY EVENT DELEGATION & ADVERSARIAL IDS =====
   console.log('\n--- SECTION 3: INVOICE HISTORY EVENT DELEGATION & ADVERSARIAL IDS ---');
@@ -540,6 +563,29 @@ app.whenReady().then(async () => {
     if (n2 !== 'PBD-0006') throw new Error('Expected PBD-0006, got ' + n2);
 
     return { n1, n2 };
+  }`);
+
+  await runRendererTest('4.3: Real Concurrent Invoice Number Allocation (Web Locks API / Mutex)', `async () => {
+    const results = await Promise.all([
+      window.DB.nextInvoiceNumber(),
+      window.DB.nextInvoiceNumber(),
+      window.DB.nextInvoiceNumber(),
+      window.DB.nextInvoiceNumber(),
+      window.DB.nextInvoiceNumber()
+    ]);
+
+    const unique = new Set(results);
+    if (unique.size !== 5) {
+      throw new Error('Collision detected in concurrent allocation! Results: ' + JSON.stringify(results));
+    }
+
+    const expected = ['PBD-0007', 'PBD-0008', 'PBD-0009', 'PBD-0010', 'PBD-0011'];
+    for (let i = 0; i < expected.length; i++) {
+      if (results[i] !== expected[i]) {
+        throw new Error('Expected ' + expected[i] + ' at index ' + i + ', got ' + results[i]);
+      }
+    }
+    return { allocated: results };
   }`);
 
   // ===== TEST SUITE 5: ELECTRON SECURITY LOCKDOWN =====

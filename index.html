@@ -2530,6 +2530,19 @@
 
     const DB = (() => {
       let db = null;
+      let _seqChain = Promise.resolve();
+
+      function _withSeqLock(fn) {
+        const run = async () => {
+          if (typeof navigator !== 'undefined' && navigator.locks && typeof navigator.locks.request === 'function') {
+            return navigator.locks.request('li_invoice_seq_lock', fn);
+          }
+          return fn();
+        };
+        const res = _seqChain.then(run, run);
+        _seqChain = res.catch(() => {});
+        return res;
+      }
 
       async function openDB() {
         return new Promise((resolve, reject) => {
@@ -2651,27 +2664,29 @@
           return `${prefix}-${String(n).padStart(4, '0')}`;
         },
         nextInvoiceNumber: async () => {
-          const current = await DB.getCounter();
-          const invoices = await DB.getInvoices();
-          const prefix = (li_settings_cache.invoicePrefix || 'PBD').toUpperCase().trim();
-          let maxNum = parseInt(current, 10) || 0;
-          const re = new RegExp('^' + prefix + '-(\\d+)$', 'i');
-          for (const inv of invoices) {
-            if (inv && inv.id) {
-              const m = String(inv.id).match(re);
-              if (m) {
-                const num = parseInt(m[1], 10);
-                if (num > maxNum) maxNum = num;
+          return _withSeqLock(async () => {
+            const current = await DB.getCounter();
+            const invoices = await DB.getInvoices();
+            const prefix = (li_settings_cache.invoicePrefix || 'PBD').toUpperCase().trim();
+            let maxNum = parseInt(current, 10) || 0;
+            const re = new RegExp('^' + prefix + '-(\\d+)$', 'i');
+            for (const inv of invoices) {
+              if (inv && inv.id) {
+                const m = String(inv.id).match(re);
+                if (m) {
+                  const num = parseInt(m[1], 10);
+                  if (num > maxNum) maxNum = num;
+                }
               }
             }
-          }
-          let n = maxNum + 1;
-          const existingIds = new Set((invoices || []).map(i => i.id));
-          while (existingIds.has(`${prefix}-${String(n).padStart(4, '0')}`)) {
-            n++;
-          }
-          await DB.setCounter(n);
-          return `${prefix}-${String(n).padStart(4, '0')}`;
+            let n = maxNum + 1;
+            const existingIds = new Set((invoices || []).map(i => i.id));
+            while (existingIds.has(`${prefix}-${String(n).padStart(4, '0')}`)) {
+              n++;
+            }
+            await DB.setCounter(n);
+            return `${prefix}-${String(n).padStart(4, '0')}`;
+          });
         },
         peekNextNumber: async () => {
           const current = await DB.getCounter();
