@@ -2543,7 +2543,11 @@
             if (!d.objectStoreNames.contains('settings'))
               d.createObjectStore('settings', { keyPath: 'key' });
           };
-          req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+          req.onsuccess = (e) => {
+            db = e.target.result;
+            db.onversionchange = () => { try { db.close(); } catch (_) { } };
+            resolve(db);
+          };
           req.onerror = (e) => reject(e.target.error);
         });
       }
@@ -2579,6 +2583,42 @@
         });
       }
 
+      function restoreAll({ invoices, items, settings, counter }) {
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(['invoices', 'items', 'settings'], 'readwrite');
+          const invStore = transaction.objectStore('invoices');
+          const itemStore = transaction.objectStore('items');
+          const setStore = transaction.objectStore('settings');
+
+          invStore.clear();
+          (invoices || []).forEach(r => invStore.put(r));
+
+          itemStore.clear();
+          (items || []).forEach(r => itemStore.put(r));
+
+          if (settings) {
+            setStore.put({ key: 'main', data: settings });
+          }
+
+          let finalCounter = parseInt(counter, 10);
+          if (isNaN(finalCounter) || finalCounter <= 0) {
+            finalCounter = 0;
+            (invoices || []).forEach(inv => {
+              const m = String(inv.id || '').match(/-(\d+)$/);
+              if (m) {
+                const num = parseInt(m[1], 10);
+                if (num > finalCounter) finalCounter = num;
+              }
+            });
+          }
+          setStore.put({ key: 'counter', data: finalCounter });
+
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+          transaction.onabort = () => reject(transaction.error || new Error('Transaction aborted'));
+        });
+      }
+
       return {
         init: openDB,
 
@@ -2607,22 +2647,59 @@
         setCounter: (n) => putRecord('settings', { key: 'counter', data: n }),
 
         _formatInvoiceNumber: (n) => {
-          const prefix = (li_settings_cache.invoicePrefix || 'PBD').toUpperCase();
+          const prefix = (li_settings_cache.invoicePrefix || 'PBD').toUpperCase().trim();
           return `${prefix}-${String(n).padStart(4, '0')}`;
         },
         nextInvoiceNumber: async () => {
           const current = await DB.getCounter();
-          const n = current + 1;
+          const invoices = await DB.getInvoices();
+          const prefix = (li_settings_cache.invoicePrefix || 'PBD').toUpperCase().trim();
+          let maxNum = parseInt(current, 10) || 0;
+          const re = new RegExp('^' + prefix + '-(\\d+)$', 'i');
+          for (const inv of invoices) {
+            if (inv && inv.id) {
+              const m = String(inv.id).match(re);
+              if (m) {
+                const num = parseInt(m[1], 10);
+                if (num > maxNum) maxNum = num;
+              }
+            }
+          }
+          let n = maxNum + 1;
+          const existingIds = new Set((invoices || []).map(i => i.id));
+          while (existingIds.has(`${prefix}-${String(n).padStart(4, '0')}`)) {
+            n++;
+          }
           await DB.setCounter(n);
-          return DB._formatInvoiceNumber(n);
+          return `${prefix}-${String(n).padStart(4, '0')}`;
         },
         peekNextNumber: async () => {
           const current = await DB.getCounter();
-          const n = current + 1;
-          return DB._formatInvoiceNumber(n);
-        }
+          const invoices = await DB.getInvoices();
+          const prefix = (li_settings_cache.invoicePrefix || 'PBD').toUpperCase().trim();
+          let maxNum = parseInt(current, 10) || 0;
+          const re = new RegExp('^' + prefix + '-(\\d+)$', 'i');
+          for (const inv of invoices) {
+            if (inv && inv.id) {
+              const m = String(inv.id).match(re);
+              if (m) {
+                const num = parseInt(m[1], 10);
+                if (num > maxNum) maxNum = num;
+              }
+            }
+          }
+          let n = maxNum + 1;
+          const existingIds = new Set((invoices || []).map(i => i.id));
+          while (existingIds.has(`${prefix}-${String(n).padStart(4, '0')}`)) {
+            n++;
+          }
+          return `${prefix}-${String(n).padStart(4, '0')}`;
+        },
+        getDB: () => db,
+        restoreAll
       };
     })();
+    window.DB = DB;
 
     // ===== INIT / SEED =====
     async function initApp() {
@@ -2635,11 +2712,31 @@
       }
 
       let items = await DB.getItems();
-      if (items.length === 0 || !localStorage.getItem('li_seed_260_hsn')) {
-        // Force overwrite to update items with proper HSN codes and units
+      if (items.length === 0) {
+        // Initial clean seed
         await DB.saveItems(SEED_ITEMS);
         localStorage.setItem('li_seed_260_hsn', 'true');
         items = SEED_ITEMS;
+      } else if (!localStorage.getItem('li_seed_260_hsn')) {
+        // Non-destructive migration: Merge seed items without deleting user items!
+        const itemMap = new Map();
+        items.forEach(it => itemMap.set(it.name.toLowerCase().trim(), it));
+        let changed = false;
+        SEED_ITEMS.forEach(seed => {
+          const key = seed.name.toLowerCase().trim();
+          if (!itemMap.has(key)) {
+            items.push(seed);
+            changed = true;
+          } else {
+            const existing = itemMap.get(key);
+            if (!existing.hsn && seed.hsn) { existing.hsn = seed.hsn; changed = true; }
+            if (!existing.unit && seed.unit) { existing.unit = seed.unit; changed = true; }
+          }
+        });
+        if (changed) {
+          await DB.saveItems(items);
+        }
+        localStorage.setItem('li_seed_260_hsn', 'true');
       }
       
       if (!localStorage.getItem('li_seed_gst_12_removed')) {
@@ -2726,6 +2823,9 @@
           }
           recalcTotals();
           showToast('Draft restored successfully!');
+        }, () => {
+          // If user rejects draft restore, discard the draft so they are not prompted again on reload
+          localStorage.removeItem('li_active_draft');
         });
       } catch (e) {
         console.error("Failed to parse active draft:", e);
@@ -2802,6 +2902,16 @@
     }
 
     // ===== UTILITY =====
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     function titleCase(str) {
       return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
     }
@@ -2865,52 +2975,92 @@
 
     // ===== MODAL =====
     let modalCallback = null;
-    function showConfirm(title, message, callback) {
+    let modalCancelCallback = null;
+    function showConfirm(title, message, callback, cancelCallback = null) {
       document.getElementById('modal-title').textContent = title;
       document.getElementById('modal-message').textContent = message;
       document.getElementById('confirm-modal').classList.add('show');
       modalCallback = callback;
+      modalCancelCallback = cancelCallback;
       document.getElementById('modal-confirm-btn').onclick = () => {
         const cb = modalCallback;
+        modalCancelCallback = null;
         closeModal();
         if (cb) cb();
       };
+      const cancelBtn = document.getElementById('modal-cancel-btn') || document.querySelector('#confirm-modal .btn-secondary');
+      if (cancelBtn) {
+        cancelBtn.onclick = () => {
+          closeModal();
+        };
+      }
     }
     function closeModal() {
+      const cancelCb = modalCancelCallback;
       document.getElementById('confirm-modal').classList.remove('show');
       modalCallback = null;
+      modalCancelCallback = null;
+      if (cancelCb) cancelCb();
     }
 
     // ===== GST CALCULATION =====
     function calcGST(finalPrice, gstPercent) {
-      const base = finalPrice / (1 + gstPercent / 100);
-      const gstAmount = finalPrice - base;
+      const fp = Math.max(0, parseFloat(finalPrice) || 0);
+      const gst = Math.max(0, parseFloat(gstPercent) || 0);
+      const base = Math.round((fp / (1 + gst / 100)) * 100) / 100;
+      const gstAmount = Math.round((fp - base) * 100) / 100;
+      const cgst = Math.round((gstAmount / 2) * 100) / 100;
+      const sgst = Math.round((gstAmount - cgst) * 100) / 100;
       return {
-        base: Math.round(base * 100) / 100,
-        gstAmount: Math.round(gstAmount * 100) / 100,
-        cgst: Math.round((gstAmount / 2) * 100) / 100,
-        sgst: Math.round((gstAmount / 2) * 100) / 100
+        base,
+        gstAmount,
+        cgst,
+        sgst
       };
     }
 
     function calcInvoiceTotals(items) {
       let totalBase = 0, totalGST = 0, grandTotal = 0;
       const rows = items.map(item => {
-        const qty = parseFloat(item.quantity) || 0;
-        const fp = parseFloat(item.finalPrice) || 0;
-        const lineTotal = fp * qty;
-        const g = calcGST(fp, parseFloat(item.gstPercent) || 0);
-        totalBase += g.base * qty;
-        totalGST += g.gstAmount * qty;
+        const qty = Math.max(0, parseFloat(item.quantity) || 0);
+        const fp = Math.max(0, parseFloat(item.finalPrice) || 0);
+        const gstPercent = Math.max(0, parseFloat(item.gstPercent) || 0);
+        const lineTotal = Math.round(fp * qty * 100) / 100;
+
+        const lineBase = Math.round((lineTotal / (1 + gstPercent / 100)) * 100) / 100;
+        const lineGst = Math.round((lineTotal - lineBase) * 100) / 100;
+        const lineCgst = Math.round((lineGst / 2) * 100) / 100;
+        const lineSgst = Math.round((lineGst - lineCgst) * 100) / 100;
+
+        const unitG = calcGST(fp, gstPercent);
+
+        totalBase += lineBase;
+        totalGST += lineGst;
         grandTotal += lineTotal;
-        return { ...item, basePrice: g.base, gstAmount: g.gstAmount, cgst: g.cgst, sgst: g.sgst, lineTotal };
+
+        return {
+          ...item,
+          basePrice: unitG.base,
+          lineBase,
+          gstAmount: lineGst,
+          cgst: lineCgst,
+          sgst: lineSgst,
+          lineTotal
+        };
       });
+
+      totalBase = Math.round(totalBase * 100) / 100;
+      grandTotal = Math.round(grandTotal * 100) / 100;
+      totalGST = Math.round((grandTotal - totalBase) * 100) / 100;
+      const totalCGST = Math.round((totalGST / 2) * 100) / 100;
+      const totalSGST = Math.round((totalGST - totalCGST) * 100) / 100;
+
       return {
         rows,
-        totalBase: Math.round(totalBase * 100) / 100,
-        totalCGST: Math.round((totalGST / 2) * 100) / 100,
-        totalSGST: Math.round((totalGST / 2) * 100) / 100,
-        grandTotal: Math.round(grandTotal * 100) / 100
+        totalBase,
+        totalCGST,
+        totalSGST,
+        grandTotal
       };
     }
 
@@ -2956,8 +3106,8 @@
 
       highlightedIdx = -1;
       let html = suggestions.map((item, i) =>
-        `<div class="autocomplete-item" data-index="${i}" data-name="${item.name}" data-gst="${item.gstPercent}" data-hsn="${item.hsn || ''}" data-unit="${item.unit || ''}">
-      <span>${item.name}</span>
+        `<div class="autocomplete-item" data-index="${i}" data-name="${escapeHtml(item.name)}" data-gst="${item.gstPercent}" data-hsn="${escapeHtml(item.hsn || '')}" data-unit="${escapeHtml(item.unit || '')}">
+      <span>${escapeHtml(item.name)}</span>
       <span class="gst-tag">${item.gstPercent}% GST</span>
     </div>`
       ).join('');
@@ -3018,11 +3168,11 @@
     <td class="auto-style-24 col-sr"></td>
     <td class="col-name">
       <div class="auto-style-25">
-        <input type="text" class="item-name" placeholder="Type item name..." value="${data ? data.name : ''}" autocomplete="off" ${isReadOnly ? 'disabled' : ''}>
+        <input type="text" class="item-name" placeholder="Type item name..." value="${data && data.name ? escapeHtml(data.name) : ''}" autocomplete="off" ${isReadOnly ? 'disabled' : ''}>
       </div>
     </td>
     <td class="col-hsn">
-      <input type="text" class="item-hsn" value="${data && data.hsn ? data.hsn : ''}" placeholder="HSN" ${isReadOnly ? 'disabled' : ''}>
+      <input type="text" class="item-hsn" value="${data && data.hsn ? escapeHtml(data.hsn) : ''}" placeholder="HSN" ${isReadOnly ? 'disabled' : ''}>
     </td>
     <td class="col-gst">
       <input type="number" class="item-gst" min="0" max="28" step="1" value="${data ? data.gstPercent : ''}" placeholder="%" ${isKnown || isReadOnly ? 'disabled' : ''}>
@@ -3031,7 +3181,7 @@
       <input type="number" class="item-qty" min="1" step="0.01" value="${data ? data.quantity : '1'}" placeholder="1" ${isReadOnly ? 'disabled' : ''}>
     </td>
     <td class="col-unit">
-      <input type="text" class="item-unit" value="${data && data.unit ? data.unit : 'pcs'}" placeholder="Unit" ${isReadOnly ? 'disabled' : ''}>
+      <input type="text" class="item-unit" value="${data && data.unit ? escapeHtml(data.unit) : 'pcs'}" placeholder="Unit" ${isReadOnly ? 'disabled' : ''}>
     </td>
     <td class="col-price">
       <input type="number" class="item-price" min="0" step="0.01" value="${data ? data.finalPrice : ''}" placeholder="₹" ${isReadOnly ? 'disabled' : ''}>
@@ -3260,6 +3410,13 @@
     }
 
     function validateInvoice() {
+      const date = document.getElementById('inv-date').value.trim();
+      if (!date) {
+        showError('Invoice Date is required.');
+        document.getElementById('inv-date').focus();
+        return false;
+      }
+
       const customer = document.getElementById('inv-customer').value.trim();
       if (!customer) {
         showError('Customer Name is required.');
@@ -3312,7 +3469,7 @@
           return false;
         }
         if (item.finalPrice > 10000000) {
-          showError(`Item "${item.name}": Price cannot exceed ₹1,000,000.`);
+          showError(`Item "${item.name}": Price cannot exceed ₹1,00,00,000.`);
           return false;
         }
         if (isNaN(item.gstPercent) || item.gstPercent < 0 || item.gstPercent > 100) {
@@ -3351,16 +3508,22 @@
         const invoices = await DB.getInvoices();
 
         if (data.id) {
-          const existing = invoices.find(i => i.id === data.id);
-          if (existing && existing.status === 'final') {
-            showError('This invoice is finalised and cannot be edited.');
-            isSubmitting = false;
-            return;
-          }
           const idx = invoices.findIndex(i => i.id === data.id);
-          data.updatedAt = new Date().toISOString();
-          data.createdAt = existing.createdAt;
-          invoices[idx] = data;
+          if (idx !== -1) {
+            const existing = invoices[idx];
+            if (existing && existing.status === 'final') {
+              showError('This invoice is finalised and cannot be edited.');
+              isSubmitting = false;
+              return;
+            }
+            data.updatedAt = new Date().toISOString();
+            data.createdAt = (existing && existing.createdAt) ? existing.createdAt : data.updatedAt;
+            invoices[idx] = data;
+          } else {
+            data.createdAt = new Date().toISOString();
+            data.updatedAt = data.createdAt;
+            invoices.unshift(data);
+          }
         } else {
           data.id = await DB.nextInvoiceNumber();
           data.createdAt = new Date().toISOString();
@@ -3393,16 +3556,22 @@
           const invoices = await DB.getInvoices();
 
           if (data.id) {
-            const existing = invoices.find(i => i.id === data.id);
-            if (existing && existing.status === 'final') {
-              showError('This invoice is already finalised.');
-              isSubmitting = false;
-              return;
-            }
             const idx = invoices.findIndex(i => i.id === data.id);
-            data.updatedAt = new Date().toISOString();
-            data.createdAt = existing.createdAt;
-            invoices[idx] = data;
+            if (idx !== -1) {
+              const existing = invoices[idx];
+              if (existing && existing.status === 'final') {
+                showError('This invoice is already finalised.');
+                isSubmitting = false;
+                return;
+              }
+              data.updatedAt = new Date().toISOString();
+              data.createdAt = (existing && existing.createdAt) ? existing.createdAt : data.updatedAt;
+              invoices[idx] = data;
+            } else {
+              data.createdAt = new Date().toISOString();
+              data.updatedAt = data.createdAt;
+              invoices.unshift(data);
+            }
           } else {
             data.id = await DB.nextInvoiceNumber();
             data.createdAt = new Date().toISOString();
@@ -3547,26 +3716,40 @@
       }
     }
 
-    function numberToWords(n) {
-      if (isNaN(n) || n === null || n === undefined) return 'Rupees Zero Only';
-      n = Math.round(n);
-      if (n < 0) return 'Negative Rupees ' + numberToWords(Math.abs(n)).replace('Rupees ', '');
-      if (n === 0) return 'Rupees Zero Only';
-      if (n > 999999999) return 'Rupees Amount Too Large Only';
+    function numberToWords(amount) {
+      if (isNaN(amount) || amount === null || amount === undefined) return 'Rupees Zero Only';
+      const num = parseFloat(amount);
+      if (num < 0) return 'Negative Rupees ' + numberToWords(Math.abs(num)).replace('Rupees ', '');
+      if (num === 0) return 'Rupees Zero Only';
+      if (num > 999999999) return 'Rupees Amount Too Large Only';
+
+      const rupees = Math.floor(num);
+      const paise = Math.round((num - rupees) * 100);
+
       const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
         'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
         'Seventeen', 'Eighteen', 'Nineteen'];
       const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-      function toWords(num) {
-        if (num === 0) return '';
-        if (num < 20) return ones[num] + ' ';
-        if (num < 100) return tens[Math.floor(num / 10)] + ' ' + toWords(num % 10);
-        if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred ' + toWords(num % 100);
-        if (num < 100000) return toWords(Math.floor(num / 1000)) + 'Thousand ' + toWords(num % 1000);
-        if (num < 10000000) return toWords(Math.floor(num / 100000)) + 'Lakh ' + toWords(num % 100000);
-        return toWords(Math.floor(num / 10000000)) + 'Crore ' + toWords(num % 10000000);
+
+      function toWords(n) {
+        if (n === 0) return '';
+        if (n < 20) return ones[n] + ' ';
+        if (n < 100) return tens[Math.floor(n / 10)] + ' ' + toWords(n % 10);
+        if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred ' + toWords(n % 100);
+        if (n < 100000) return toWords(Math.floor(n / 1000)) + 'Thousand ' + toWords(n % 1000);
+        if (n < 10000000) return toWords(Math.floor(n / 100000)) + 'Lakh ' + toWords(n % 100000);
+        return toWords(Math.floor(n / 10000000)) + 'Crore ' + toWords(n % 10000000);
       }
-      return 'Rupees ' + toWords(n).trim() + ' Only';
+
+      let words = '';
+      if (rupees > 0) {
+        words = 'Rupees ' + toWords(rupees).trim();
+      }
+      if (paise > 0) {
+        const paiseWords = toWords(paise).trim() + ' Paise';
+        words = words ? words + ' and ' + paiseWords : paiseWords;
+      }
+      return (words || 'Rupees Zero') + ' Only';
     }
 
     // ===== PRINT AREA =====
@@ -3583,15 +3766,17 @@
       items.forEach((item, i) => {
         const g = calcGST(item.finalPrice, item.gstPercent);
         const lt = item.finalPrice * item.quantity;
+        const lineBase = item.lineBase !== undefined ? item.lineBase : (Math.round((lt / (1 + (item.gstPercent || 0) / 100)) * 100) / 100);
+        const lineGst = item.gstAmount !== undefined ? item.gstAmount : (Math.round((lt - lineBase) * 100) / 100);
         itemsHTML += `<tr>
       <td class="auto-style-26">${i + 1}</td>
-      <td class="auto-style-27">${item.name}</td>
-      <td class="auto-style-28">${item.hsn || ''}</td>
+      <td class="auto-style-27">${escapeHtml(item.name)}</td>
+      <td class="auto-style-28">${escapeHtml(item.hsn || '')}</td>
       <td class="auto-style-26">${item.gstPercent}%</td>
       <td class="auto-style-29">${item.quantity}</td>
-      <td class="auto-style-28">${item.unit || ''}</td>
+      <td class="auto-style-28">${escapeHtml(item.unit || '')}</td>
       <td class="auto-style-29">${g.base.toFixed(2)}</td>
-      <td class="auto-style-29">${(g.gstAmount * item.quantity).toFixed(2)}</td>
+      <td class="auto-style-29">${lineGst.toFixed(2)}</td>
       <td class="auto-style-29">${lt.toFixed(2)}</td>
     </tr>`;
       });
@@ -3621,13 +3806,13 @@
     <div class="auto-style-38 header-border-line">
       <div>
         <div class="auto-style-39">
-          ${shop.shopName || 'Shop Name'}
+          ${escapeHtml(shop.shopName || 'Shop Name')}
         </div>
         <div class="auto-style-40">
-          ${shop.shopAddress || ''}
+          ${escapeHtml(shop.shopAddress || '')}
         </div>
         <div class="auto-style-41">
-          GSTIN: ${shop.gstNumber || 'N/A'}
+          GSTIN: ${escapeHtml(shop.gstNumber || 'N/A')}
         </div>
       </div>
       <div class="auto-style-42 invoice-label-block">
@@ -3640,17 +3825,17 @@
       <div>
         <div class="auto-style-44">Invoice to:</div>
         <div class="auto-style-45">
-          ${inv.customerName || ''}
+          ${escapeHtml(inv.customerName || '')}
         </div>
         <div class="auto-style-46">
-          ${inv.customerPhone || ''}
+          ${escapeHtml(inv.customerPhone || '')}
         </div>
       </div>
       <div class="auto-style-47">
         <table class="auto-style-48">
           <tr>
             <td class="auto-style-49">Invoice #</td>
-            <td class="auto-style-50">${inv.id}</td>
+            <td class="auto-style-50">${escapeHtml(inv.id)}</td>
           </tr>
           <tr>
             <td class="auto-style-49">Date</td>
@@ -3709,7 +3894,7 @@
     
     <!-- AMOUNT IN WORDS -->
     <div class="auto-style-68 amount-words">
-      ${numberToWords(Math.round(inv.grandTotal || 0))}
+      ${numberToWords(inv.grandTotal || 0)}
     </div>
 
     <!-- PAYMENT INFO SECTION -->
@@ -3717,18 +3902,18 @@
       <div class="auto-style-70">
         <div class="auto-style-71">Payment Info:</div>
         <table class="auto-style-72">
-          <tr><td class="auto-style-73">Account # :</td><td class="auto-style-74">${shop.accNumber || '—'}</td></tr>
-          <tr><td class="auto-style-73">A/C Name:</td><td class="auto-style-74">${shop.accHolder || '—'}</td></tr>
-          <tr><td class="auto-style-73">Bank:</td><td class="auto-style-74">${shop.bankName || '—'}</td></tr>
-          <tr><td class="auto-style-73">IFSC:</td><td class="auto-style-74">${shop.ifsc || '—'}</td></tr>
-          <tr><td class="auto-style-73">UPI ID:</td><td class="auto-style-74">${shop.upiId || '—'}</td></tr>
+          <tr><td class="auto-style-73">Account # :</td><td class="auto-style-74">${escapeHtml(shop.accNumber || '—')}</td></tr>
+          <tr><td class="auto-style-73">A/C Name:</td><td class="auto-style-74">${escapeHtml(shop.accHolder || '—')}</td></tr>
+          <tr><td class="auto-style-73">Bank:</td><td class="auto-style-74">${escapeHtml(shop.bankName || '—')}</td></tr>
+          <tr><td class="auto-style-73">IFSC:</td><td class="auto-style-74">${escapeHtml(shop.ifsc || '—')}</td></tr>
+          <tr><td class="auto-style-73">UPI ID:</td><td class="auto-style-74">${escapeHtml(shop.upiId || '—')}</td></tr>
         </table>
       </div>
       <div class="auto-style-75">
         <div class="auto-style-76" id="qr-print"></div>
         <div class="auto-style-77">Scan to Pay</div>
         <div class="auto-style-78">
-          ${shop.shopEmail ? `Email: ${shop.shopEmail}<br>` : ''}
+          ${shop.shopEmail ? `Email: ${escapeHtml(shop.shopEmail)}<br>` : ''}
         </div>
       </div>
     </div>
@@ -3736,11 +3921,11 @@
     <!-- FOOTER STRIP -->
     <div class="auto-style-79 invoice-footer">
       <div class="auto-style-80">
-        ${shop.shopPhone ? `Phone: ${shop.shopPhone}` : ''}
+        ${shop.shopPhone ? `Phone: ${escapeHtml(shop.shopPhone)}` : ''}
         ${shop.shopPhone && (shop.shopEmail || shop.shopWebsite) ? ` / ` : ''}
-        ${shop.shopEmail ? `Email: ${shop.shopEmail}` : ''}
+        ${shop.shopEmail ? `Email: ${escapeHtml(shop.shopEmail)}` : ''}
         ${shop.shopEmail && shop.shopWebsite ? ` / ` : ''}
-        ${shop.shopWebsite ? `Website: ${shop.shopWebsite}` : ''}
+        ${shop.shopWebsite ? `Website: ${escapeHtml(shop.shopWebsite)}` : ''}
       </div>
       <div class="auto-style-81"></div>
       <div class="auto-style-82">
@@ -3775,6 +3960,61 @@
       }
     }
 
+    // ===== PAGE BREAK CALCULATOR =====
+    function findSafePageBreaks(totalCanvasHeight, pageCanvasHeight, containerEl) {
+      if (totalCanvasHeight <= pageCanvasHeight) {
+        return [totalCanvasHeight];
+      }
+
+      const boundaries = [];
+      if (containerEl && typeof containerEl.getBoundingClientRect === 'function') {
+        const containerRect = containerEl.getBoundingClientRect();
+        const cTop = containerRect.top;
+        const cHeight = containerRect.height || 1;
+        const scale = totalCanvasHeight / cHeight;
+
+        const rowEls = containerEl.querySelectorAll(
+          '.print-items-table tbody tr, .totals-subtotal-row, .totals-tax-row, .totals-grand-row, .amount-words, .payment-section, .invoice-footer, .print-disclaimer'
+        );
+        rowEls.forEach(el => {
+          const r = el.getBoundingClientRect();
+          const topRel = (r.top - cTop) * scale;
+          const bottomRel = (r.bottom - cTop) * scale;
+          if (topRel >= 0 && bottomRel <= totalCanvasHeight) {
+            boundaries.push({ top: topRel, bottom: bottomRel });
+          }
+        });
+      }
+
+      const slices = [];
+      let currentStart = 0;
+
+      while (currentStart < totalCanvasHeight) {
+        let idealEnd = currentStart + pageCanvasHeight;
+        if (idealEnd >= totalCanvasHeight) {
+          slices.push(totalCanvasHeight - currentStart);
+          break;
+        }
+
+        let safeBreak = idealEnd;
+        for (const b of boundaries) {
+          if (b.top < idealEnd && b.bottom > idealEnd) {
+            // Element is sliced across page boundary; break cleanly before it if reasonable
+            if (b.top > currentStart + (pageCanvasHeight * 0.25)) {
+              safeBreak = Math.floor(b.top);
+              break;
+            }
+          }
+        }
+
+        const sliceHeight = safeBreak - currentStart;
+        slices.push(sliceHeight);
+        currentStart = safeBreak;
+      }
+
+      return slices;
+    }
+
     // ===== PDF DOWNLOAD =====
     async function downloadPDF() {
       const btnPdf = document.getElementById('btn-pdf');
@@ -3798,7 +4038,7 @@
         }
 
         if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
-          showToast('PDF libraries not loaded. Please check internet connection.');
+          showToast('PDF generation libraries failed to load. Please verify vendor files in lib/.');
           return;
         }
 
@@ -3833,14 +4073,69 @@
         });
 
         const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
         const pageW = pdf.internal.pageSize.getWidth();   // 210mm
         const pageH = pdf.internal.pageSize.getHeight();  // 297mm
         const imgH = (canvas.height * pageW) / canvas.width;
 
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, imgH > pageH ? pageH : imgH);
-        pdf.save('Invoice-' + inv.id + '.pdf');
-        showToast('PDF downloaded!');
+        if (imgH <= pageH) {
+          pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageW, imgH, undefined, 'FAST');
+        } else {
+          // Multi-page slicing without clipping or mid-row text cutting
+          const pageCanvasHeight = Math.floor(canvas.width * (pageH / pageW));
+          const slices = findSafePageBreaks(canvas.height, pageCanvasHeight, el);
+          let renderedH = 0;
+
+          for (let pageIdx = 0; pageIdx < slices.length; pageIdx++) {
+            const sliceH = slices[pageIdx];
+            const pageCanvas = document.createElement('canvas');
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = sliceH;
+            const ctx = pageCanvas.getContext('2d');
+            ctx.drawImage(canvas, 0, renderedH, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+
+            const sliceData = pageCanvas.toDataURL('image/png');
+            const slicePdfH = (sliceH * pageW) / canvas.width;
+
+            if (pageIdx > 0) {
+              pdf.addPage();
+            }
+            pdf.addImage(sliceData, 'PNG', 0, 0, pageW, slicePdfH, undefined, 'FAST');
+
+            renderedH += sliceH;
+          }
+        }
+
+        const fileName = 'Invoice-' + inv.id + '.pdf';
+
+        // Check if Web Share API is available (e.g. mobile Capacitor / mobile browsers)
+        let shared = false;
+        if (navigator.canShare) {
+          try {
+            const pdfBlob = pdf.output('blob');
+            const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+            if (navigator.canShare({ files: [pdfFile] })) {
+              await navigator.share({
+                title: fileName,
+                text: 'Invoice from ' + (inv.shopSnapshot?.shopName || 'LocalInvoice'),
+                files: [pdfFile]
+              });
+              shared = true;
+              showToast('PDF shared successfully!');
+            }
+          } catch (shareErr) {
+            if (shareErr.name === 'AbortError') {
+              shared = true; // User intentionally cancelled the native share dialog
+            } else {
+              console.warn('Web Share failed, falling back to direct download:', shareErr);
+            }
+          }
+        }
+
+        if (!shared) {
+          pdf.save(fileName);
+          showToast('PDF downloaded!');
+        }
       } catch (e) {
         showToast('PDF failed: ' + e.message);
         console.error(e);
@@ -3862,6 +4157,28 @@
     async function renderHistory(filter) {
       const invoices = await DB.getInvoices();
       const container = document.getElementById('invoice-list-container');
+
+      if (container && !container.__listenerAttached) {
+        container.__listenerAttached = true;
+        container.addEventListener('click', (e) => {
+          const target = e.target.closest('[data-action]');
+          if (!target) return;
+          const action = target.dataset.action;
+          const id = target.dataset.invoiceId;
+          if (!id) return;
+          e.stopPropagation();
+
+          if (action === 'open-invoice') {
+            openInvoice(id);
+          } else if (action === 'delete-draft') {
+            deleteDraftAction(id);
+          } else if (action === 'reprint-invoice') {
+            reprintInvoice(id);
+          } else if (action === 'cancel-invoice') {
+            cancelInvoiceAction(id);
+          }
+        });
+      }
 
       let filtered = invoices;
       if (filter) {
@@ -3903,16 +4220,20 @@
             if (inv.status === 'final') { badgeClass = 'badge-final'; statusText = 'FINAL'; }
             else if (inv.status === 'cancelled') { badgeClass = 'badge-cancelled'; statusText = 'CANCELLED'; }
 
-            let actions = `<button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openInvoice('${inv.id}')">Edit</button>`;
-            if (inv.status === 'final') {
-              actions += ` <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();reprintInvoice('${inv.id}')">Reprint</button>`;
-              actions += ` <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();cancelInvoiceAction('${inv.id}')">Cancel</button>`;
+            const escapedId = escapeHtml(inv.id);
+            let actions = '';
+            if (inv.status === 'draft') {
+              actions = `<button class="btn btn-sm btn-outline" data-action="open-invoice" data-invoice-id="${escapedId}">Edit</button> <button class="btn btn-sm btn-outline" data-action="delete-draft" data-invoice-id="${escapedId}">Delete</button>`;
+            } else if (inv.status === 'final') {
+              actions = `<button class="btn btn-sm btn-outline" data-action="open-invoice" data-invoice-id="${escapedId}">View</button> <button class="btn btn-sm btn-outline" data-action="reprint-invoice" data-invoice-id="${escapedId}">Reprint</button> <button class="btn btn-sm btn-outline" data-action="cancel-invoice" data-invoice-id="${escapedId}">Cancel</button>`;
+            } else {
+              actions = `<button class="btn btn-sm btn-outline" data-action="open-invoice" data-invoice-id="${escapedId}">View</button>`;
             }
 
             return `
-          <div class="invoice-row" onclick="openInvoice('${inv.id}')">
-            <span class="inv-no">${inv.id}</span>
-            <span class="inv-customer">${inv.customerName || '—'}</span>
+          <div class="invoice-row" data-action="open-invoice" data-invoice-id="${escapedId}">
+            <span class="inv-no">${escapedId}</span>
+            <span class="inv-customer">${escapeHtml(inv.customerName || '—')}</span>
             <span class="inv-total">${formatCurrency(inv.grandTotal || 0)}</span>
             <span class="inv-actions">${actions}</span>
           </div>`;
@@ -3932,6 +4253,29 @@
       if (!inv) return;
       await renderPrintArea(inv);
       setTimeout(() => window.print(), 300);
+    }
+
+    function deleteDraftAction(id) {
+      showConfirm('Delete Draft', `Are you sure you want to delete draft invoice ${id}? This cannot be undone.`, async () => {
+        try {
+          let invoices = await DB.getInvoices();
+          const target = invoices.find(i => i.id === id);
+          if (target && target.status !== 'draft') {
+            showError('Only draft invoices can be deleted.');
+            return;
+          }
+          invoices = invoices.filter(i => i.id !== id);
+          await DB.saveInvoices(invoices);
+          showToast('Draft invoice ' + id + ' deleted.');
+          if (currentInvoiceId === id) {
+            resetNewInvoice();
+          }
+          renderHistory(document.getElementById('search-invoices').value);
+        } catch (err) {
+          showError('Failed to delete draft: ' + err.message);
+          console.error(err);
+        }
+      });
     }
 
     function cancelInvoiceAction(id) {
@@ -3958,6 +4302,37 @@
     }
 
     // ===== BACKUP / RESTORE =====
+    function validateBackupData(data) {
+      if (!data || typeof data !== 'object') {
+        return { valid: false, error: 'Backup root must be a valid JSON object.' };
+      }
+      if (!Array.isArray(data.invoices)) {
+        return { valid: false, error: 'Invalid backup: "invoices" must be an array.' };
+      }
+      for (let i = 0; i < data.invoices.length; i++) {
+        const inv = data.invoices[i];
+        if (!inv || typeof inv !== 'object' || !inv.id || typeof inv.id !== 'string') {
+          return { valid: false, error: `Invalid invoice at index ${i}: missing valid string "id".` };
+        }
+      }
+      if (!Array.isArray(data.items)) {
+        return { valid: false, error: 'Invalid backup: "items" must be an array.' };
+      }
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i];
+        if (!item || typeof item !== 'object' || !item.name || typeof item.name !== 'string') {
+          return { valid: false, error: `Invalid item at index ${i}: missing valid string "name".` };
+        }
+      }
+      if (data.settings !== undefined && (data.settings === null || typeof data.settings !== 'object')) {
+        return { valid: false, error: 'Invalid backup: "settings" must be an object if present.' };
+      }
+      if (data.counter !== undefined && (isNaN(parseInt(data.counter)) || parseInt(data.counter) < 0)) {
+        return { valid: false, error: 'Invalid backup: "counter" must be a non-negative number.' };
+      }
+      return { valid: true };
+    }
+
     async function exportBackup() {
       try {
         const data = {
@@ -3968,11 +4343,33 @@
           settings: await DB.getSettings(),
           counter: await DB.getCounter()
         };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const fileName = `LocalInvoice-backup-${todayISO()}.json`;
+        const jsonStr = JSON.stringify(data, null, 2);
+
+        // Check if Web Share API is available for mobile targets
+        if (navigator.canShare) {
+          try {
+            const file = new File([jsonStr], fileName, { type: 'application/json' });
+            if (navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                title: fileName,
+                text: 'LocalInvoice Database Backup',
+                files: [file]
+              });
+              showToast('Backup exported and shared!');
+              return;
+            }
+          } catch (shareErr) {
+            if (shareErr.name === 'AbortError') return;
+            console.warn('Web Share failed for backup, falling back to download:', shareErr);
+          }
+        }
+
+        const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `LocalInvoice-backup-${todayISO()}.json`;
+        a.download = fileName;
         a.click();
         URL.revokeObjectURL(url);
         showToast('Backup exported!');
@@ -3988,34 +4385,42 @@
       reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target.result);
-          const invCount = (data.invoices || []).length;
-          const itemCount = (data.items || []).length;
+          const validation = validateBackupData(data);
+          if (!validation.valid) {
+            showError('Backup validation failed: ' + validation.error);
+            return;
+          }
+
+          const invCount = data.invoices.length;
+          const itemCount = data.items.length;
           showConfirm('Import Backup',
             `Import ${invCount} invoices and ${itemCount} items? Current data will be replaced.`,
             async () => {
               try {
-                await DB.saveInvoices(data.invoices || []);
-                await DB.saveItems(data.items || []);
+                await DB.restoreAll({
+                  invoices: data.invoices,
+                  items: data.items,
+                  settings: data.settings,
+                  counter: data.counter
+                });
                 if (data.settings) {
-                  await DB.saveSettings(data.settings);
                   li_settings_cache = data.settings;
                 }
-                if (data.counter !== undefined) await DB.setCounter(parseInt(data.counter) || 0);
-                showToast('Backup restored!');
+                showToast('Backup restored successfully!');
                 setTimeout(() => location.reload(), 800);
               } catch (dbErr) {
-                showError('Failed to restore data: ' + dbErr.message);
+                showError('Failed to restore data (transaction rolled back safely): ' + dbErr.message);
                 console.error(dbErr);
               }
             }
           );
         } catch (err) {
-          showToast('Invalid backup file structure.');
+          showError('Invalid JSON backup file: ' + err.message);
           console.error(err);
         }
       };
       reader.onerror = (err) => {
-        showToast('Failed to read backup file.');
+        showError('Failed to read backup file.');
         console.error(err);
       };
       reader.readAsText(file);
@@ -4132,16 +4537,31 @@
           return;
         }
 
+        if (!tbody.__listenerAttached) {
+          tbody.__listenerAttached = true;
+          tbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            const itemName = btn.dataset.itemName;
+            if (action === 'edit-item') {
+              openItemModal(itemName);
+            } else if (action === 'delete-item') {
+              deleteItem(itemName);
+            }
+          });
+        }
+
         tbody.innerHTML = items.map((item, idx) => `
       <tr class="inv-row">
         <td class="auto-style-26">${idx + 1}</td>
-        <td class="auto-style-27">${item.name}</td>
-        <td>${item.hsn || '—'}</td>
+        <td class="auto-style-27">${escapeHtml(item.name)}</td>
+        <td>${escapeHtml(item.hsn || '—')}</td>
         <td>${item.gstPercent}%</td>
-        <td>${item.unit || '—'}</td>
+        <td>${escapeHtml(item.unit || '—')}</td>
         <td class="auto-style-29">
-          <button class="auto-style-88 btn btn-sm btn-outline" onclick="openItemModal('${encodeURIComponent(item.name).replace(/\'/g, "%27")}')">Edit</button>
-          <button class="auto-style-89 btn btn-sm btn-outline" onclick="deleteItem('${encodeURIComponent(item.name).replace(/\'/g, "%27")}')">Del</button>
+          <button class="auto-style-88 btn btn-sm btn-outline" data-action="edit-item" data-item-name="${escapeHtml(item.name)}">Edit</button>
+          <button class="auto-style-89 btn btn-sm btn-outline" data-action="delete-item" data-item-name="${escapeHtml(item.name)}">Del</button>
         </td>
       </tr>
     `).join('');
@@ -4151,7 +4571,7 @@
       }
     }
 
-    async function openItemModal(encodedName = null) {
+    async function openItemModal(itemName = null) {
       try {
         const modal = document.getElementById('item-modal');
         const title = document.getElementById('item-modal-title');
@@ -4161,8 +4581,15 @@
         const inpUnit = document.getElementById('edit-item-unit');
         const inpOrig = document.getElementById('edit-item-original-name');
 
-        if (encodedName) {
-          const name = decodeURIComponent(encodedName);
+        if (itemName) {
+          let name = itemName;
+          try {
+            if (typeof itemName === 'string' && itemName.includes('%')) {
+              name = decodeURIComponent(itemName);
+            }
+          } catch (e) {
+            name = itemName;
+          }
           const items = await DB.getItems();
           const item = items.find(i => i.name === name);
           if (item) {
@@ -4241,8 +4668,16 @@
       }
     }
 
-    async function deleteItem(encodedName) {
-      const name = decodeURIComponent(encodedName);
+    async function deleteItem(itemName) {
+      if (!itemName) return;
+      let name = itemName;
+      try {
+        if (typeof itemName === 'string' && itemName.includes('%')) {
+          name = decodeURIComponent(itemName);
+        }
+      } catch (e) {
+        name = itemName;
+      }
       showConfirm('Delete Item', `Are you sure you want to delete "${name}"?`, async () => {
         try {
           let items = await DB.getItems();
@@ -4274,8 +4709,21 @@
       document.title = 'LocalInvoice — GST Billing App';
     });
 
+    // ===== TESTING AND RUNTIME EXPORTS =====
+    if (typeof window !== 'undefined') {
+      window.DB = DB;
+      window.calcGST = calcGST;
+      window.calcInvoiceTotals = calcInvoiceTotals;
+      window.validateBackupData = validateBackupData;
+      window.numberToWords = numberToWords;
+      window.escapeHtml = escapeHtml;
+      window.findSafePageBreaks = findSafePageBreaks;
+    }
+
     // ===== INIT =====
-    initApp();
+    if (typeof window !== 'undefined' && !window.__TEST_ENV__) {
+      initApp();
+    }
   </script>
 </body>
 

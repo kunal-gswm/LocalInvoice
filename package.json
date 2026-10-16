@@ -5,6 +5,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test test/audit_verification.test.js && electron test/run_electron_audit.js",
+    "test:electron": "electron test/run_electron_audit.js",
     "dist": "electron-builder",
     "pack": "electron-builder --dir",
     "build:mobile": "node build-mobile.js"

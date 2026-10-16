@@ -15,9 +15,42 @@ function createWindow () {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
     },
     icon: path.join(__dirname, 'assets', 'logo.png'),
     title: 'LocalInvoice — GST Billing App'
+  });
+
+  function isSafeExternalUrl(urlStr) {
+    try {
+      const parsed = new URL(urlStr);
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Security: Restrict in-app navigation; LocalInvoice is an SPA and never navigates away from index.html
+  win.webContents.on('will-navigate', (event, navigationUrl) => {
+    if (navigationUrl !== win.webContents.getURL()) {
+      event.preventDefault();
+      if (isSafeExternalUrl(navigationUrl)) {
+        require('electron').shell.openExternal(navigationUrl);
+      }
+    }
+  });
+
+  // Security: Prevent iframe navigation
+  win.webContents.on('will-frame-navigate', (event) => {
+    event.preventDefault();
+  });
+
+  // Security: Deny window creation and safely open external links in default browser
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) {
+      require('electron').shell.openExternal(url);
+    }
+    return { action: 'deny' };
   });
 
   win.loadFile('index.html');
