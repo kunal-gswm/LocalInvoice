@@ -588,10 +588,257 @@ app.whenReady().then(async () => {
     return { allocated: results };
   }`);
 
-  // ===== TEST SUITE 5: ELECTRON SECURITY LOCKDOWN =====
-  console.log('\n--- SECTION 5: ELECTRON DESKTOP SECURITY AUDIT ---');
+  // ===== TEST SUITE 5: INVOICE EDITING, DUPLICATION & IMMUTABILITY =====
+  console.log('\n--- SECTION 5: INVOICE EDITING, DUPLICATION & IMMUTABILITY ---');
 
-  await runRendererTest('5.1: Renderer Sandboxing & Context Isolation Verification', `() => {
+  await runRendererTest('5.1: History Action Buttons for Draft, Final, and Cancelled Invoices', `async () => {
+    await window.DB.restoreAll({
+      invoices: [
+        { id: 'PBD-0001', status: 'draft', customerName: 'Draft Alpha', grandTotal: 50, date: '2026-10-16', items: [{ name: 'Pen', quantity: 5, finalPrice: 10, gstPercent: 0 }] },
+        { id: 'PBD-0002', status: 'final', customerName: 'Final Beta', grandTotal: 100, date: '2026-10-16', items: [{ name: 'Notebook', quantity: 2, finalPrice: 50, gstPercent: 0 }] },
+        { id: 'PBD-0003', status: 'cancelled', customerName: 'Cancelled Gamma', grandTotal: 30, date: '2026-10-16', items: [{ name: 'Folder', quantity: 1, finalPrice: 30, gstPercent: 0 }] }
+      ],
+      items: [],
+      settings: { shopName: 'Audit Test Shop' },
+      counter: 3
+    });
+
+    await window.renderHistory('');
+    const container = document.getElementById('invoice-list-container');
+    const rows = Array.from(container.querySelectorAll('.invoice-row'));
+    if (rows.length !== 3) throw new Error('Expected 3 rows in history, got ' + rows.length);
+
+    // Draft row buttons
+    const draftRow = rows.find(r => r.dataset.invoiceId === 'PBD-0001');
+    const draftActions = Array.from(draftRow.querySelectorAll('button')).map(b => b.dataset.action);
+    if (!draftActions.includes('edit-invoice') || !draftActions.includes('delete-draft')) {
+      throw new Error('Draft row must have edit-invoice and delete-draft actions: ' + JSON.stringify(draftActions));
+    }
+
+    // Final row buttons
+    const finalRow = rows.find(r => r.dataset.invoiceId === 'PBD-0002');
+    const finalActions = Array.from(finalRow.querySelectorAll('button')).map(b => b.dataset.action);
+    if (!finalActions.includes('open-invoice') || !finalActions.includes('duplicate-invoice') || !finalActions.includes('reprint-invoice') || !finalActions.includes('cancel-invoice')) {
+      throw new Error('Final row must have open, duplicate, reprint, and cancel actions: ' + JSON.stringify(finalActions));
+    }
+
+    // Cancelled row buttons
+    const cancelRow = rows.find(r => r.dataset.invoiceId === 'PBD-0003');
+    const cancelActions = Array.from(cancelRow.querySelectorAll('button')).map(b => b.dataset.action);
+    if (!cancelActions.includes('open-invoice') || !cancelActions.includes('duplicate-invoice')) {
+      throw new Error('Cancelled row must have open and duplicate actions: ' + JSON.stringify(cancelActions));
+    }
+
+    return { draftActions, finalActions, cancelActions };
+  }`);
+
+  await runRendererTest('5.2: In-Place Draft Editing and Save without Sequence Counter Inflation', `async () => {
+    // 1. Enter edit mode on draft PBD-0001
+    await window.editInvoice('PBD-0001');
+
+    const banner = document.getElementById('edit-mode-banner');
+    if (banner.classList.contains('hidden')) {
+      throw new Error('Edit mode banner should be visible when editing draft');
+    }
+    const bannerId = document.getElementById('edit-banner-id').textContent;
+    if (bannerId !== 'PBD-0001') {
+      throw new Error('Edit mode banner ID mismatch: expected PBD-0001, got ' + bannerId);
+    }
+
+    const btnSave = document.getElementById('btn-save-draft');
+    if (btnSave.textContent !== 'Save Changes') {
+      throw new Error('Save button text should be "Save Changes", got ' + btnSave.textContent);
+    }
+
+    // 2. Form fields must be unlocked
+    if (document.getElementById('inv-customer').disabled) {
+      throw new Error('Customer name input should be enabled in edit mode');
+    }
+
+    // 3. Modify fields
+    document.getElementById('inv-customer').value = 'Updated Draft Alpha';
+    const qtyInput = document.querySelector('#items-tbody tr .item-qty');
+    if (!qtyInput) throw new Error('Item quantity input not found');
+    qtyInput.value = '10';
+    qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // 4. Verify unsaved changes detected
+    if (!window.hasUnsavedChanges()) {
+      throw new Error('hasUnsavedChanges() should be true after form mutation');
+    }
+
+    // 5. Save changes
+    await window.saveDraft();
+
+    // 6. Verify in DB: same ID, updated customer, updated grandTotal, counter unchanged
+    const invoices = await window.DB.getInvoices();
+    const updated = invoices.find(i => i.id === 'PBD-0001');
+    if (!updated) throw new Error('Draft PBD-0001 not found after save');
+    if (updated.customerName !== 'Updated Draft Alpha') {
+      throw new Error('Customer name not updated: ' + updated.customerName);
+    }
+    if (updated.grandTotal !== 100) {
+      throw new Error('Grand total should be 100 (10 items @ 10), got ' + updated.grandTotal);
+    }
+
+    const counter = await window.DB.getCounter();
+    if (counter !== 3) {
+      throw new Error('Sequence counter should NOT advance on draft update, expected 3 got ' + counter);
+    }
+
+    // 7. Verify hasUnsavedChanges is now false
+    if (window.hasUnsavedChanges()) {
+      throw new Error('hasUnsavedChanges() should be false after saving');
+    }
+
+    return { draftId: updated.id, newCustomer: updated.customerName, newTotal: updated.grandTotal, counter };
+  }`);
+
+  await runRendererTest('5.3: Immutability of Finalized and Cancelled Invoices', `async () => {
+    // 1. Load finalized invoice PBD-0002
+    await window.loadInvoice('PBD-0002');
+
+    const banner = document.getElementById('edit-mode-banner');
+    if (banner && !banner.classList.contains('hidden')) {
+      throw new Error('Edit banner must NOT be displayed for finalized invoice');
+    }
+
+    const customerInput = document.getElementById('inv-customer');
+    if (!customerInput.disabled) {
+      throw new Error('Customer input must be disabled for finalized invoice');
+    }
+
+    const btnSave = document.getElementById('btn-save-draft');
+    if (!btnSave.classList.contains('hidden')) {
+      throw new Error('Save draft button must be hidden for finalized invoice');
+    }
+
+    // 2. Direct saveDraft attempt on finalized invoice must show error and block save
+    await window.saveDraft();
+    const errEl = document.getElementById('invoice-error');
+    if (!errEl || !errEl.textContent.includes('finalised')) {
+      throw new Error('saveDraft() should display finalised error, got: ' + (errEl ? errEl.textContent : 'none'));
+    }
+
+    // 3. Verify in DB that PBD-0002 is completely unchanged
+    const invoices = await window.DB.getInvoices();
+    const inv = invoices.find(i => i.id === 'PBD-0002');
+    if (inv.status !== 'final' || inv.grandTotal !== 100) {
+      throw new Error('Final invoice corrupted in DB: ' + JSON.stringify(inv));
+    }
+
+    return { finalizedProtected: true, status: inv.status };
+  }`);
+
+  await runRendererTest('5.4: Duplicate Invoice into Fresh Editable Draft with Distinct Sequence', `async () => {
+    // 1. Duplicate finalized invoice PBD-0002
+    await window.duplicateInvoice('PBD-0002');
+
+    // 2. Verify page-new state
+    const banner = document.getElementById('edit-mode-banner');
+    if (!banner.classList.contains('hidden')) {
+      throw new Error('Edit mode banner should NOT show for duplicated new draft');
+    }
+
+    const numInput = document.getElementById('inv-number').value;
+    if (numInput !== 'PBD-0004') {
+      throw new Error('Duplicated draft should display next sequence PBD-0004, got ' + numInput);
+    }
+
+    const customerVal = document.getElementById('inv-customer').value;
+    if (customerVal !== 'Final Beta') {
+      throw new Error('Duplicated customer name should be "Final Beta", got ' + customerVal);
+    }
+
+    // Counter before saving must still be 3
+    let counter = await window.DB.getCounter();
+    if (counter !== 3) {
+      throw new Error('Duplicating before save should not advance counter, expected 3 got ' + counter);
+    }
+
+    // 3. Save the duplicated draft
+    await window.saveDraft();
+
+    // Counter must now advance to 4
+    counter = await window.DB.getCounter();
+    if (counter !== 4) {
+      throw new Error('Counter should advance to 4 after saving duplicated draft, got ' + counter);
+    }
+
+    // Check DB records
+    const invoices = await window.DB.getInvoices();
+    if (invoices.length !== 4) {
+      throw new Error('Expected 4 invoices in DB, got ' + invoices.length);
+    }
+
+    const newDraft = invoices.find(i => i.id === 'PBD-0004');
+    if (!newDraft || newDraft.status !== 'draft') {
+      throw new Error('New draft PBD-0004 not created properly in DB');
+    }
+    if (newDraft.customerName !== 'Final Beta' || newDraft.grandTotal !== 100) {
+      throw new Error('Duplicated draft data mismatch: ' + JSON.stringify(newDraft));
+    }
+
+    // Original finalized invoice must still exist and be intact
+    const original = invoices.find(i => i.id === 'PBD-0002');
+    if (!original || original.status !== 'final') {
+      throw new Error('Original finalized invoice PBD-0002 was damaged during duplication');
+    }
+
+    return { newDraftId: newDraft.id, counter, totalInvoices: invoices.length };
+  }`);
+
+  await runRendererTest('5.5: Cancel Editing and Draft Auto-Save State Reset', `async () => {
+    // 1. Enter edit mode on draft PBD-0001
+    await window.editInvoice('PBD-0001');
+
+    const banner = document.getElementById('edit-mode-banner');
+    if (banner.classList.contains('hidden')) {
+      throw new Error('Banner must be visible when editing');
+    }
+
+    // 2. Trigger autosave
+    document.getElementById('inv-customer').value = 'Autosave Customer Check';
+    document.getElementById('inv-customer').dispatchEvent(new Event('input', { bubbles: true }));
+
+    const savedState = JSON.parse(localStorage.getItem('li_active_draft') || '{}');
+    if (savedState.id !== 'PBD-0001') {
+      throw new Error('Autosave failed to retain draft ID PBD-0001, got: ' + savedState.id);
+    }
+
+    // 3. Cancel editing (triggers confirm dialog because changes are unsaved)
+    window.cancelEditDraft();
+
+    const confirmModal = document.getElementById('confirm-modal');
+    if (!confirmModal.classList.contains('show')) {
+      throw new Error('Confirm modal should be shown when cancelling with unsaved changes');
+    }
+
+    // Confirm discarding changes
+    document.getElementById('modal-confirm-btn').click();
+    await new Promise(r => setTimeout(r, 100));
+
+    // 4. Verify banner is hidden, autosave draft removed, and navigated to history
+    if (!banner.classList.contains('hidden')) {
+      throw new Error('Banner should be hidden after confirming cancellation');
+    }
+
+    if (localStorage.getItem('li_active_draft')) {
+      throw new Error('localStorage draft should be cleaned up after cancelling edit');
+    }
+
+    const historyPage = document.getElementById('page-history');
+    if (!historyPage.classList.contains('active')) {
+      throw new Error('Should navigate to history page after cancelling edit');
+    }
+
+    return { cancelSuccessful: true, modalConfirmed: true, navigatedToHistory: true };
+  }`);
+
+  // ===== TEST SUITE 6: ELECTRON SECURITY LOCKDOWN =====
+  console.log('\n--- SECTION 6: ELECTRON DESKTOP SECURITY AUDIT ---');
+
+  await runRendererTest('6.1: Renderer Sandboxing & Context Isolation Verification', `() => {
     const hasRequire = typeof require !== 'undefined';
     const hasProcess = typeof process !== 'undefined';
     const hasNodeGlobals = typeof global !== 'undefined' && global.process;
@@ -613,12 +860,12 @@ app.whenReady().then(async () => {
   await new Promise(r => setTimeout(r, 600));
 
   if (navigationBlocked) {
-    console.log('✔ [PASS] 5.2: Navigation Lockdown: will-navigate successfully intercepted and blocked external navigation');
+    console.log('✔ [PASS] 6.2: Navigation Lockdown: will-navigate successfully intercepted and blocked external navigation');
     console.log(`    Detail: Blocked URL = ${blockedUrl}`);
-    results.push({ name: '5.2: Navigation Lockdown', pass: true, detail: `Blocked ${blockedUrl}` });
+    results.push({ name: '6.2: Navigation Lockdown', pass: true, detail: `Blocked ${blockedUrl}` });
   } else {
-    console.error('✖ [FAIL] 5.2: Navigation Lockdown: Navigation was not blocked!');
-    results.push({ name: '5.2: Navigation Lockdown', pass: false, error: 'Navigation not blocked' });
+    console.error('✖ [FAIL] 6.2: Navigation Lockdown: Navigation was not blocked!');
+    results.push({ name: '6.2: Navigation Lockdown', pass: false, error: 'Navigation not blocked' });
   }
 
   // Summary

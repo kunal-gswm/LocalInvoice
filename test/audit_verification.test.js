@@ -151,7 +151,17 @@ function loadProductionEnvironment() {
     numberToWords: sandbox.window.numberToWords,
     escapeHtml: sandbox.window.escapeHtml,
     findSafePageBreaks: sandbox.window.findSafePageBreaks,
-    DB: sandbox.window.DB
+    DB: sandbox.window.DB,
+    loadInvoice: sandbox.window.loadInvoice,
+    editInvoice: sandbox.window.editInvoice,
+    duplicateInvoice: sandbox.window.duplicateInvoice,
+    cancelEditDraft: sandbox.window.cancelEditDraft,
+    hasUnsavedChanges: sandbox.window.hasUnsavedChanges,
+    resetNewInvoice: sandbox.window.resetNewInvoice,
+    saveDraft: sandbox.window.saveDraft,
+    finaliseInvoice: sandbox.window.finaliseInvoice,
+    renderHistory: sandbox.window.renderHistory,
+    getInvoiceFormState: sandbox.window.getInvoiceFormState
   };
 }
 
@@ -165,6 +175,11 @@ test('TEST 1: Production script in index.html exports all required core modules'
   assert.strictEqual(typeof prod.escapeHtml, 'function', 'escapeHtml must be exported from index.html');
   assert.strictEqual(typeof prod.findSafePageBreaks, 'function', 'findSafePageBreaks must be exported from index.html');
   assert.strictEqual(typeof prod.DB, 'object', 'DB module must be exported from index.html');
+  assert.strictEqual(typeof prod.loadInvoice, 'function', 'loadInvoice must be exported from index.html');
+  assert.strictEqual(typeof prod.editInvoice, 'function', 'editInvoice must be exported from index.html');
+  assert.strictEqual(typeof prod.duplicateInvoice, 'function', 'duplicateInvoice must be exported from index.html');
+  assert.strictEqual(typeof prod.cancelEditDraft, 'function', 'cancelEditDraft must be exported from index.html');
+  assert.strictEqual(typeof prod.hasUnsavedChanges, 'function', 'hasUnsavedChanges must be exported from index.html');
 });
 
 // ===== TEST 2: FINANCIAL ENGINE & ODD-PAISE SPLITTING (DEF-04) =====
@@ -453,4 +468,40 @@ test('TEST 10: main.js enforces Electron sandbox, context isolation, and navigat
   assert.match(mainJs, /will-navigate/, 'will-navigate handler must be registered');
   assert.match(mainJs, /setWindowOpenHandler/, 'setWindowOpenHandler must be registered');
   assert.match(mainJs, /shell\.openExternal/, 'External links must be routed to system browser');
+});
+
+// ===== TEST 11: IMMUTABILITY ENFORCEMENT & DRAFT EDIT CONTRACT =====
+test('TEST 11: Finalized/cancelled invoices are immutable against in-place edits and draft updates preserve sequence', async () => {
+  const { DB } = loadProductionEnvironment();
+  await DB.init();
+
+  // Setup: one draft, one final, one cancelled
+  const seedInvoices = [
+    { id: 'PBD-0001', status: 'draft', customerName: 'Initial Draft Buyer', grandTotal: 100 },
+    { id: 'PBD-0002', status: 'final', customerName: 'Finalized Customer', grandTotal: 500 },
+    { id: 'PBD-0003', status: 'cancelled', customerName: 'Cancelled Customer', grandTotal: 200 }
+  ];
+  await DB.restoreAll({ invoices: seedInvoices, items: [], settings: {}, counter: 3 });
+
+  // 1. In-place edit of draft PBD-0001 must update existing record and NOT advance counter
+  let invoices = await DB.getInvoices();
+  const draftIdx = invoices.findIndex(i => i.id === 'PBD-0001');
+  assert(draftIdx !== -1, 'Draft must exist');
+  invoices[draftIdx].customerName = 'Updated Draft Buyer';
+  invoices[draftIdx].grandTotal = 150;
+  await DB.saveInvoices(invoices);
+
+  const updatedInvoices = await DB.getInvoices();
+  const updatedDraft = updatedInvoices.find(i => i.id === 'PBD-0001');
+  assert.strictEqual(updatedDraft.customerName, 'Updated Draft Buyer');
+  assert.strictEqual(updatedDraft.grandTotal, 150);
+  assert.strictEqual(updatedInvoices.length, 3, 'Invoice count must remain unchanged after draft edit');
+
+  // Sequence counter must NOT have advanced
+  const counterAfterEdit = await DB.getCounter();
+  assert.strictEqual(counterAfterEdit, 3, 'Draft editing must not increment invoice sequence counter');
+
+  // 2. Next invoice number must still be PBD-0004
+  const peek = await DB.peekNextNumber();
+  assert.strictEqual(peek, 'PBD-0004', 'Peek next number must match next sequence');
 });

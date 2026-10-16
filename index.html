@@ -348,6 +348,41 @@
       color: var(--badge-cancelled-text);
     }
 
+    /* ===== EDIT MODE BANNER ===== */
+    .edit-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 18px;
+      margin-bottom: 16px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-left: 4px solid #2563eb;
+      border-radius: var(--radius);
+      color: #1e3a8a;
+      font-size: 0.95rem;
+    }
+
+    .edit-banner .edit-banner-text {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+
+    .edit-banner .edit-banner-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dark-mode .edit-banner {
+      background: #1e293b;
+      border-color: #3b82f6;
+      color: #93c5fd;
+    }
+
     /* ===== ITEMS TABLE ===== */
     .items-table-wrap {
       overflow-x: auto;
@@ -594,7 +629,7 @@
 
     .invoice-row {
       display: grid;
-      grid-template-columns: 100px 1fr 110px 240px;
+      grid-template-columns: 100px 1fr 110px auto;
       gap: 8px;
       align-items: center;
       padding: 14px 16px;
@@ -635,6 +670,7 @@
       display: flex;
       gap: 6px;
       justify-content: flex-end;
+      flex-wrap: wrap;
     }
 
     .summary-bar {
@@ -1092,6 +1128,7 @@
       .invoice-row .inv-actions {
         grid-column: 1 / -1;
         justify-content: flex-start;
+        flex-wrap: wrap;
       }
 
       .form-grid {
@@ -1924,6 +1961,17 @@
   <main id="page-new" class="page">
     <div id="invoice-error" class="error-msg"></div>
 
+    <!-- Edit Mode Banner -->
+    <div id="edit-mode-banner" class="edit-banner hidden" role="status">
+      <div class="edit-banner-text">
+        <span class="edit-icon">✏️</span>
+        <span>Editing Draft Invoice: <strong id="edit-banner-id">—</strong></span>
+      </div>
+      <div class="edit-banner-actions">
+        <button type="button" class="btn btn-sm btn-outline" id="btn-banner-cancel-edit" onclick="cancelEditDraft()">Cancel Editing</button>
+      </div>
+    </div>
+
     <!-- Shop Details -->
     <div class="card">
       <div class="card-title">Shop Details</div>
@@ -2059,8 +2107,11 @@
       <button class="btn btn-outline btn-lg" onclick="downloadPDF()" id="btn-pdf">Download PDF</button>
       <button class="btn btn-outline btn-lg hidden" onclick="cancelInvoiceAction(currentInvoiceId)"
         id="btn-cancel-invoice">Cancel Invoice</button>
-      <button class="btn btn-ghost" onclick="resetNewInvoice()" id="btn-new-fresh">New Invoice</button>
-      <button class="auto-style-4 btn btn-primary" id="btn-new-from-view" onclick="navigate('new')">Create New
+      <button class="btn btn-outline btn-lg hidden" id="btn-duplicate-from-view"
+        onclick="duplicateInvoice(currentInvoiceId)">Duplicate as New Draft</button>
+      <button class="btn btn-ghost btn-lg hidden" id="btn-cancel-edit" onclick="cancelEditDraft()">Cancel Editing</button>
+      <button class="btn btn-ghost" onclick="handleNewInvoiceClick()" id="btn-new-fresh">New Invoice</button>
+      <button class="auto-style-4 btn btn-primary" id="btn-new-from-view" onclick="handleNewInvoiceClick()">Create New
         Invoice</button>
     </div>
   </main>
@@ -2793,6 +2844,91 @@
     let isReadOnly = false;
 
     // ===== DRAFT AUTO-SAVE & RECOVERY =====
+    let _originalDraftSnapshot = null;
+
+    function getInvoiceFormState() {
+      const dateEl = document.getElementById('inv-date');
+      const custEl = document.getElementById('inv-customer');
+      const phoneEl = document.getElementById('inv-phone');
+      return {
+        date: dateEl ? dateEl.value : '',
+        customerName: custEl ? custEl.value.trim() : '',
+        customerPhone: phoneEl ? phoneEl.value.trim() : '',
+        items: getItemsFromTable().map(it => ({
+          name: it.name,
+          hsn: it.hsn,
+          gstPercent: it.gstPercent,
+          quantity: it.quantity,
+          unit: it.unit,
+          finalPrice: it.finalPrice
+        }))
+      };
+    }
+
+    function hasUnsavedChanges() {
+      if (isReadOnly) return false;
+      const state = getInvoiceFormState();
+      if (!currentInvoiceId) {
+        return !!(state.customerName || state.customerPhone || (state.items.length > 0 && state.items.some(i => i.name || i.finalPrice > 0)));
+      }
+      if (!_originalDraftSnapshot) return false;
+      return JSON.stringify(state) !== _originalDraftSnapshot;
+    }
+
+    function showEditBanner(id) {
+      const banner = document.getElementById('edit-mode-banner');
+      const bannerId = document.getElementById('edit-banner-id');
+      if (banner && bannerId) {
+        bannerId.textContent = id;
+        banner.classList.remove('hidden');
+      }
+    }
+
+    function clearEditBanner() {
+      const banner = document.getElementById('edit-mode-banner');
+      if (banner) {
+        banner.classList.add('hidden');
+      }
+    }
+
+    async function cancelEditDraft() {
+      if (hasUnsavedChanges()) {
+        showConfirm(
+          'Discard Changes?',
+          `You have unsaved changes to draft ${currentInvoiceId || ''}. Are you sure you want to discard them?`,
+          async () => {
+            await _doCancelEdit();
+          }
+        );
+      } else {
+        await _doCancelEdit();
+      }
+    }
+
+    async function _doCancelEdit() {
+      clearEditBanner();
+      currentInvoiceId = null;
+      _doNavigate('history');
+      await resetNewInvoice();
+      localStorage.removeItem('li_active_draft');
+      _originalDraftSnapshot = null;
+      showToast('Editing cancelled.');
+    }
+
+    function handleNewInvoiceClick() {
+      if (hasUnsavedChanges()) {
+        showConfirm(
+          'Start New Invoice?',
+          'You have unsaved changes. Discard them and start a new blank invoice?',
+          () => {
+            resetNewInvoice();
+          }
+        );
+      } else {
+        resetNewInvoice();
+      }
+    }
+
     function autoSaveActiveDraft() {
       if (isReadOnly || currentPage !== 'new') return;
       const date = document.getElementById('inv-date').value;
@@ -2806,6 +2942,8 @@
       }
 
       const draft = {
+        id: currentInvoiceId || null,
+        isEdit: !!currentInvoiceId,
         date,
         customerName: customer,
         customerPhone: phone,
@@ -2822,7 +2960,21 @@
         if (!draft || (!draft.customerName && !draft.customerPhone && (!draft.items || draft.items.length === 0))) {
           return;
         }
-        showConfirm('Restore Draft', 'An unsaved draft invoice was found. Would you like to restore it?', () => {
+        showConfirm('Restore Draft', 'An unsaved draft invoice was found. Would you like to restore it?', async () => {
+          if (draft.id) {
+            currentInvoiceId = draft.id;
+            document.getElementById('inv-number').value = draft.id;
+            showEditBanner(draft.id);
+            document.getElementById('btn-save-draft').textContent = 'Save Changes';
+            document.getElementById('btn-cancel-edit').classList.remove('hidden');
+          } else {
+            currentInvoiceId = null;
+            clearEditBanner();
+            document.getElementById('btn-save-draft').textContent = 'Save Draft';
+            document.getElementById('btn-cancel-edit').classList.add('hidden');
+            document.getElementById('inv-number').value = await DB.peekNextNumber();
+          }
+
           document.getElementById('inv-date').value = draft.date || todayISO();
           document.getElementById('inv-customer').value = draft.customerName || '';
           document.getElementById('inv-phone').value = draft.customerPhone || '';
@@ -2837,6 +2989,7 @@
             addItemRow();
           }
           recalcTotals();
+          _originalDraftSnapshot = JSON.stringify(getInvoiceFormState());
           showToast('Draft restored successfully!');
         }, () => {
           // If user rejects draft restore, discard the draft so they are not prompted again on reload
@@ -2865,7 +3018,7 @@
         logo.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            navigate('new');
+            handleNewInvoiceClick();
           }
         });
       }
@@ -2883,11 +3036,28 @@
         saveDraft();
       } else if (e.key === 'F8' || (e.ctrlKey && e.key === 'n')) {
         e.preventDefault();
-        resetNewInvoice();
+        handleNewInvoiceClick();
       }
     });
 
     function navigate(page, invoiceId) {
+      if (currentPage === 'new' && (page !== 'new' || !invoiceId) && hasUnsavedChanges()) {
+        const dest = page === 'new' ? 'start a fresh invoice' : 'leave this page';
+        showConfirm(
+          'Discard Unsaved Changes?',
+          `You have unsaved changes in this invoice. Are you sure you want to discard them and ${dest}?`,
+          () => {
+            _originalDraftSnapshot = null;
+            localStorage.removeItem('li_active_draft');
+            _doNavigate(page, invoiceId);
+          }
+        );
+        return;
+      }
+      _doNavigate(page, invoiceId);
+    }
+
+    function _doNavigate(page, invoiceId) {
       currentPage = page;
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -3351,24 +3521,29 @@
         quantity: parseFloat(tr.querySelector('.item-qty').value) || 0,
         unit: tr.querySelector('.item-unit').value.trim() || 'pcs',
         finalPrice: parseFloat(tr.querySelector('.item-price').value) || 0
-      })).filter(item => item.name || item.finalPrice > 0 || item.quantity > 0);
+      })).filter(item => item.name || item.finalPrice > 0);
     }
 
     // ===== INVOICE OPERATIONS =====
     async function resetNewInvoice() {
       localStorage.removeItem('li_active_draft');
       currentInvoiceId = null;
+      _originalDraftSnapshot = null;
       isReadOnly = false;
+      clearEditBanner();
       document.getElementById('btn-new-from-view').style.display = 'none';
+      document.getElementById('btn-duplicate-from-view').classList.add('hidden');
+      document.getElementById('btn-cancel-edit').classList.add('hidden');
+      document.getElementById('btn-save-draft').textContent = 'Save Draft';
       hideError();
-      document.getElementById('inv-number').value = await DB.peekNextNumber();
-      document.getElementById('inv-date').value = todayISO();
       document.getElementById('inv-customer').value = '';
       document.getElementById('inv-phone').value = '';
-      document.getElementById('inv-status-badge').className = 'badge badge-draft';
-      document.getElementById('inv-status-badge').textContent = 'DRAFT';
       document.getElementById('items-tbody').innerHTML = '';
       rowCounter = 0;
+      document.getElementById('inv-date').value = todayISO();
+      document.getElementById('inv-status-badge').className = 'badge badge-draft';
+      document.getElementById('inv-status-badge').textContent = 'DRAFT';
+      document.getElementById('inv-number').value = await DB.peekNextNumber();
 
       // Unlock fields
       document.getElementById('inv-date').disabled = false;
@@ -3531,6 +3706,11 @@
               isSubmitting = false;
               return;
             }
+            if (existing && existing.status === 'cancelled') {
+              showError('This invoice is cancelled and cannot be edited.');
+              isSubmitting = false;
+              return;
+            }
             data.updatedAt = new Date().toISOString();
             data.createdAt = (existing && existing.createdAt) ? existing.createdAt : data.updatedAt;
             invoices[idx] = data;
@@ -3551,7 +3731,17 @@
         localStorage.removeItem('li_active_draft');
         currentInvoiceId = data.id;
         document.getElementById('inv-number').value = data.id;
+
+        // Maintain edit state
+        showEditBanner(data.id);
+        document.getElementById('btn-save-draft').textContent = 'Save Changes';
+        document.getElementById('btn-cancel-edit').classList.remove('hidden');
+        _originalDraftSnapshot = JSON.stringify(getInvoiceFormState());
+
         showToast('Draft saved: ' + data.id);
+        if (typeof renderHistory === 'function' && currentPage === 'history') {
+          renderHistory(document.getElementById('search-invoices')?.value || '');
+        }
       } catch (err) {
         showError('Failed to save draft: ' + err.message);
         console.error(err);
@@ -3579,6 +3769,11 @@
                 isSubmitting = false;
                 return;
               }
+              if (existing && existing.status === 'cancelled') {
+                showError('This invoice is cancelled and cannot be finalised.');
+                isSubmitting = false;
+                return;
+              }
               data.updatedAt = new Date().toISOString();
               data.createdAt = (existing && existing.createdAt) ? existing.createdAt : data.updatedAt;
               invoices[idx] = data;
@@ -3599,6 +3794,8 @@
           localStorage.removeItem('li_active_draft');
           currentInvoiceId = data.id;
           document.getElementById('inv-number').value = data.id;
+          clearEditBanner();
+          _originalDraftSnapshot = null;
 
           showToast('Invoice finalised: ' + data.id);
           setReadOnly();
@@ -3636,7 +3833,10 @@
 
     async function setReadOnly() {
       isReadOnly = true;
+      clearEditBanner();
       document.getElementById('btn-new-from-view').style.display = 'inline-flex';
+      document.getElementById('btn-duplicate-from-view').classList.remove('hidden');
+      document.getElementById('btn-cancel-edit').classList.add('hidden');
       document.getElementById('inv-date').disabled = true;
       document.getElementById('inv-customer').disabled = true;
       document.getElementById('inv-phone').disabled = true;
@@ -3662,17 +3862,21 @@
       }
     }
 
-    async function loadInvoice(invoiceId) {
+    async function loadInvoice(invoiceId, isEditMode = false) {
       try {
         const invoices = await DB.getInvoices();
         const inv = invoices.find(i => i.id === invoiceId);
-        if (!inv) { showToast('Invoice not found'); return; }
+        if (!inv) {
+          showError('Invoice not found: ' + escapeHtml(invoiceId));
+          return;
+        }
 
         currentInvoiceId = inv.id;
         isReadOnly = false;
+        hideError();
 
         document.getElementById('inv-number').value = inv.id;
-        document.getElementById('inv-date').value = inv.date;
+        document.getElementById('inv-date').value = inv.date || todayISO();
         document.getElementById('inv-customer').value = inv.customerName || '';
         document.getElementById('inv-phone').value = inv.customerPhone || '';
 
@@ -3702,23 +3906,39 @@
         }
 
         // Items
-        document.getElementById('items-tbody').innerHTML = '';
+        const tbody = document.getElementById('items-tbody');
+        tbody.innerHTML = '';
         rowCounter = 0;
         (inv.items || []).forEach(item => addItemRow(item));
+        if ((inv.items || []).length === 0 && inv.status === 'draft') {
+          addItemRow();
+        }
         recalcTotals();
 
-        // Show/hide buttons
-        document.getElementById('btn-save-draft').classList.remove('hidden');
-        document.getElementById('btn-finalise').classList.remove('hidden');
-        document.getElementById('btn-add-row').classList.remove('hidden');
-        document.getElementById('btn-cancel-invoice').classList.add('hidden');
+        if (inv.status === 'draft') {
+          // Unlock fields for editing
+          document.getElementById('inv-date').disabled = false;
+          document.getElementById('inv-customer').disabled = false;
+          document.getElementById('inv-phone').disabled = false;
+          document.querySelectorAll('#items-tbody input').forEach(el => el.disabled = false);
+          document.querySelectorAll('.btn-remove-row').forEach(el => el.style.display = 'inline-flex');
 
-        document.getElementById('inv-date').disabled = false;
-        document.getElementById('inv-customer').disabled = false;
-        document.getElementById('inv-phone').disabled = false;
+          // Action buttons
+          document.getElementById('btn-save-draft').classList.remove('hidden');
+          document.getElementById('btn-save-draft').textContent = 'Save Changes';
+          document.getElementById('btn-finalise').classList.remove('hidden');
+          document.getElementById('btn-add-row').classList.remove('hidden');
+          document.getElementById('btn-cancel-invoice').classList.add('hidden');
+          document.getElementById('btn-cancel-edit').classList.remove('hidden');
+          document.getElementById('btn-duplicate-from-view').classList.add('hidden');
+          document.getElementById('btn-new-from-view').style.display = 'none';
 
-        if (inv.status !== 'draft') {
-          setReadOnly();
+          showEditBanner(inv.id);
+          _originalDraftSnapshot = JSON.stringify(getInvoiceFormState());
+        } else {
+          clearEditBanner();
+          _originalDraftSnapshot = null;
+          await setReadOnly();
         }
 
         // Render print area for final invoices
@@ -3729,6 +3949,141 @@
         showError('Failed to load invoice: ' + err.message);
         console.error(err);
       }
+    }
+
+    async function editInvoice(id) {
+      try {
+        const invoices = await DB.getInvoices();
+        const inv = invoices.find(i => i.id === id);
+        if (!inv) {
+          showError('Invoice not found: ' + escapeHtml(id));
+          return;
+        }
+
+        if (inv.status === 'final') {
+          showConfirm(
+            'Invoice Finalised',
+            `Invoice ${escapeHtml(id)} is finalised and immutable. Would you like to duplicate it into a new editable draft?`,
+            () => duplicateInvoice(id)
+          );
+          return;
+        }
+
+        if (inv.status === 'cancelled') {
+          showConfirm(
+            'Invoice Cancelled',
+            `Invoice ${escapeHtml(id)} is cancelled and cannot be edited in place. Would you like to duplicate it into a new draft?`,
+            () => duplicateInvoice(id)
+          );
+          return;
+        }
+
+        if (currentPage === 'new' && hasUnsavedChanges()) {
+          showConfirm(
+            'Discard Changes?',
+            'You have unsaved changes in your current invoice. Discard them to edit draft ' + escapeHtml(id) + '?',
+            async () => {
+              _originalDraftSnapshot = null;
+              localStorage.removeItem('li_active_draft');
+              await _doOpenEdit(id);
+            }
+          );
+          return;
+        }
+
+        await _doOpenEdit(id);
+      } catch (err) {
+        showError('Failed to open draft for editing: ' + err.message);
+        console.error(err);
+      }
+    }
+
+    async function _doOpenEdit(id) {
+      currentPage = 'new';
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      document.getElementById('page-new').classList.add('active');
+      document.getElementById('nav-new').classList.add('active');
+
+      await loadInvoice(id, true);
+    }
+
+    async function duplicateInvoice(id) {
+      try {
+        const invoices = await DB.getInvoices();
+        const inv = invoices.find(i => i.id === id);
+        if (!inv) {
+          showError('Invoice not found: ' + escapeHtml(id));
+          return;
+        }
+
+        if (currentPage === 'new' && hasUnsavedChanges()) {
+          showConfirm(
+            'Discard Changes?',
+            'You have unsaved changes in your current invoice. Discard them and duplicate invoice ' + escapeHtml(id) + '?',
+            async () => {
+              await _doDuplicateInvoice(inv);
+            }
+          );
+          return;
+        }
+
+        await _doDuplicateInvoice(inv);
+      } catch (err) {
+        showError('Failed to duplicate invoice: ' + err.message);
+        console.error(err);
+      }
+    }
+
+    async function _doDuplicateInvoice(inv) {
+      currentPage = 'new';
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      document.getElementById('page-new').classList.add('active');
+      document.getElementById('nav-new').classList.add('active');
+
+      currentInvoiceId = null;
+      _originalDraftSnapshot = null;
+      isReadOnly = false;
+      localStorage.removeItem('li_active_draft');
+      clearEditBanner();
+      hideError();
+
+      document.getElementById('inv-number').value = await DB.peekNextNumber();
+      document.getElementById('inv-date').value = todayISO();
+      document.getElementById('inv-customer').value = inv.customerName || '';
+      document.getElementById('inv-phone').value = inv.customerPhone || '';
+
+      document.getElementById('inv-status-badge').className = 'badge badge-draft';
+      document.getElementById('inv-status-badge').textContent = 'DRAFT';
+
+      // Unlock fields
+      document.getElementById('inv-date').disabled = false;
+      document.getElementById('inv-customer').disabled = false;
+      document.getElementById('inv-phone').disabled = false;
+
+      // Show draft buttons
+      document.getElementById('btn-save-draft').classList.remove('hidden');
+      document.getElementById('btn-save-draft').textContent = 'Save Draft';
+      document.getElementById('btn-finalise').classList.remove('hidden');
+      document.getElementById('btn-add-row').classList.remove('hidden');
+      document.getElementById('btn-cancel-invoice').classList.add('hidden');
+      document.getElementById('btn-cancel-edit').classList.add('hidden');
+      document.getElementById('btn-duplicate-from-view').classList.add('hidden');
+      document.getElementById('btn-new-from-view').style.display = 'none';
+
+      const tbody = document.getElementById('items-tbody');
+      tbody.innerHTML = '';
+      rowCounter = 0;
+      (inv.items || []).forEach(item => addItemRow(item));
+      if ((inv.items || []).length === 0) {
+        addItemRow();
+      }
+      await fillShopDetails();
+      recalcTotals();
+      _originalDraftSnapshot = JSON.stringify(getInvoiceFormState());
+
+      showToast(`Created new draft copy from ${inv.id}`);
     }
 
     function numberToWords(amount) {
@@ -4185,6 +4540,10 @@
 
           if (action === 'open-invoice') {
             openInvoice(id);
+          } else if (action === 'edit-invoice') {
+            editInvoice(id);
+          } else if (action === 'duplicate-invoice') {
+            duplicateInvoice(id);
           } else if (action === 'delete-draft') {
             deleteDraftAction(id);
           } else if (action === 'reprint-invoice') {
@@ -4238,11 +4597,11 @@
             const escapedId = escapeHtml(inv.id);
             let actions = '';
             if (inv.status === 'draft') {
-              actions = `<button class="btn btn-sm btn-outline" data-action="open-invoice" data-invoice-id="${escapedId}">Edit</button> <button class="btn btn-sm btn-outline" data-action="delete-draft" data-invoice-id="${escapedId}">Delete</button>`;
+              actions = `<button class="btn btn-sm btn-outline" data-action="edit-invoice" data-invoice-id="${escapedId}">Edit</button> <button class="btn btn-sm btn-outline" data-action="delete-draft" data-invoice-id="${escapedId}">Delete</button>`;
             } else if (inv.status === 'final') {
-              actions = `<button class="btn btn-sm btn-outline" data-action="open-invoice" data-invoice-id="${escapedId}">View</button> <button class="btn btn-sm btn-outline" data-action="reprint-invoice" data-invoice-id="${escapedId}">Reprint</button> <button class="btn btn-sm btn-outline" data-action="cancel-invoice" data-invoice-id="${escapedId}">Cancel</button>`;
+              actions = `<button class="btn btn-sm btn-outline" data-action="open-invoice" data-invoice-id="${escapedId}">View</button> <button class="btn btn-sm btn-outline" data-action="duplicate-invoice" data-invoice-id="${escapedId}">Duplicate</button> <button class="btn btn-sm btn-outline" data-action="reprint-invoice" data-invoice-id="${escapedId}">Reprint</button> <button class="btn btn-sm btn-outline" data-action="cancel-invoice" data-invoice-id="${escapedId}">Cancel</button>`;
             } else {
-              actions = `<button class="btn btn-sm btn-outline" data-action="open-invoice" data-invoice-id="${escapedId}">View</button>`;
+              actions = `<button class="btn btn-sm btn-outline" data-action="open-invoice" data-invoice-id="${escapedId}">View</button> <button class="btn btn-sm btn-outline" data-action="duplicate-invoice" data-invoice-id="${escapedId}">Duplicate</button>`;
             }
 
             return `
@@ -4258,8 +4617,18 @@
       }
     }
 
-    function openInvoice(id) {
-      navigate('new', id);
+    async function openInvoice(id) {
+      try {
+        const invoices = await DB.getInvoices();
+        const inv = invoices.find(i => i.id === id);
+        if (inv && inv.status === 'draft') {
+          editInvoice(id);
+        } else {
+          navigate('new', id);
+        }
+      } catch (err) {
+        navigate('new', id);
+      }
     }
 
     async function reprintInvoice(id) {
@@ -4733,6 +5102,16 @@
       window.numberToWords = numberToWords;
       window.escapeHtml = escapeHtml;
       window.findSafePageBreaks = findSafePageBreaks;
+      window.loadInvoice = loadInvoice;
+      window.editInvoice = editInvoice;
+      window.duplicateInvoice = duplicateInvoice;
+      window.cancelEditDraft = cancelEditDraft;
+      window.hasUnsavedChanges = hasUnsavedChanges;
+      window.resetNewInvoice = resetNewInvoice;
+      window.saveDraft = saveDraft;
+      window.finaliseInvoice = finaliseInvoice;
+      window.renderHistory = renderHistory;
+      window.getInvoiceFormState = getInvoiceFormState;
     }
 
     // ===== INIT =====
